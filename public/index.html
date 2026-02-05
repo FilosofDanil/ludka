@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Ludik Dashboard</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>Ludik Dashboard</h1>
+            <p class="subtitle">Welcome to your mini app</p>
+        </header>
+
+        <main class="main">
+            <form id="dashboardForm" class="form">
+                <div class="form-group">
+                    <label for="name">Name</label>
+                    <input 
+                        type="text" 
+                        id="name" 
+                        name="name" 
+                        placeholder="Enter your name"
+                        required
+                    >
+                </div>
+
+                <div class="form-group">
+                    <label for="email">Email</label>
+                    <input 
+                        type="email" 
+                        id="email" 
+                        name="email" 
+                        placeholder="Enter your email"
+                        required
+                    >
+                </div>
+
+                <div class="form-group">
+                    <label for="message">Message</label>
+                    <textarea 
+                        id="message" 
+                        name="message" 
+                        placeholder="Enter your message"
+                        rows="3"
+                    ></textarea>
+                </div>
+
+                <div class="button-group">
+                    <button type="submit" class="btn btn-primary">
+                        Submit
+                    </button>
+                    <button type="button" class="btn btn-secondary" id="clearBtn">
+                        Clear
+                    </button>
+                </div>
+            </form>
+
+            <div id="response" class="response hidden"></div>
+
+            <section class="actions">
+                <h2>Quick Actions</h2>
+                <div class="action-buttons">
+                    <button class="btn btn-action" data-action="action1">
+                        Action 1
+                    </button>
+                    <button class="btn btn-action" data-action="action2">
+                        Action 2
+                    </button>
+                    <button class="btn btn-action" data-action="action3">
+                        Action 3
+                    </button>
+                </div>
+            </section>
+        </main>
+
+        <footer class="footer">
+            <p>Powered by Telegram Mini Apps</p>
+        </footer>
+    </div>
+
+    <script src="js/app.js"></script>
+</body>
+</html>
