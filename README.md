@@ -47,17 +47,41 @@ WEB_APP_URL=https://your-domain.com
 PORT=3000
 ```
 
-### 4. Deploy for HTTPS (Required for Telegram)
+### 4. Install ngrok (for local development)
 
-Telegram Mini Apps require HTTPS. Options:
+Telegram Mini Apps require HTTPS. For local development:
 
-- **ngrok** (for development): `ngrok http 3000`
-- **Cloudflare Tunnel**
-- **Deploy to Vercel/Railway/Render**
+1. Download ngrok from [https://ngrok.com/download](https://ngrok.com/download)
+2. Extract and add to your PATH
+3. Sign up for a free account and authenticate: `ngrok config add-authtoken YOUR_TOKEN`
 
-Update `WEB_APP_URL` in `.env` with your HTTPS URL.
+For production, deploy to Vercel/Railway/Render with HTTPS.
 
 ### 5. Run the App
+
+**Option A: Quick Start with ngrok (Recommended for development)**
+
+Windows (choose one):
+```cmd
+start.cmd
+```
+or
+```powershell
+.\start.ps1
+```
+
+Linux/Mac:
+```bash
+./start.sh
+```
+
+This will:
+- Install dependencies if needed
+- Start the Node.js server
+- Launch ngrok tunnel with HTTPS URL
+- Display the URL to add to `.env` and @BotFather
+
+**Option B: Manual start**
 
 ```bash
 # Development (with auto-reload)
@@ -65,7 +89,39 @@ npm run dev
 
 # Production
 npm start
+
+# In another terminal, start ngrok
+ngrok http 3000
 ```
+
+Update `WEB_APP_URL` in `.env` with your ngrok HTTPS URL.
+
+## Quick Setup Guide
+
+1. **Install ngrok** and authenticate (see step 4 above)
+
+2. **Run the launch script:**
+   - Windows: Double-click `start.cmd` or run `.\start.ps1` in PowerShell
+   - Linux/Mac: Run `./start.sh` in terminal
+
+3. **Copy the ngrok URL** (e.g., `https://abc123.ngrok.io`)
+
+4. **Update `.env` file:**
+   ```env
+   WEB_APP_URL=https://abc123.ngrok.io
+   ```
+
+5. **Configure bot in @BotFather:**
+   - Send `/mybots` → select your bot → Bot Settings → Menu Button
+   - Set URL to your ngrok URL
+   - Or create a Web App: `/newapp` → follow instructions
+
+6. **Restart the server** (CTRL+C and run `start.cmd` or `start.sh` again)
+
+7. **Test in Telegram:**
+   - Open your bot
+   - Send `/start`
+   - Click "Open Dashboard"
 
 ## Usage
 
