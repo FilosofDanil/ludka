@@ -1,22 +1,41 @@
 # Ludik Telegram Mini App
 
-A simple Telegram Mini App with a dashboard featuring text fields and buttons.
+A simple Telegram Mini App with a dashboard featuring text fields and buttons, plus a comprehensive admin panel.
+
+📖 **Quick Links:**
+- [📑 Documentation Index](INDEX.md) - Complete documentation navigation
+- [🚀 Quick Start Guide](QUICKSTART.md) - Get started in 5 minutes
+- [🔧 Admin Panel Documentation](ADMIN_PANEL.md) - Detailed admin features
+- [🏗️ Architecture](ARCHITECTURE.md) - Technical architecture and flow diagrams
+- [🐛 Troubleshooting](TROUBLESHOOTING.md) - Common issues and solutions
+- [✨ Features](FEATURES.md) - Complete feature list
+- [📋 Project Summary](PROJECT_SUMMARY.md) - Overview and next steps
+
+---
 
 ## Project Structure
 
 ```
 ├── src/
 │   ├── server.js      # Express server
-│   └── bot.js         # Telegram bot logic
+│   ├── bot.js         # Telegram bot with admin panel
+│   ├── adminAuth.js   # Authorization & whitelist management
+│   ├── adminPanel.js  # Admin panel UI & logic
+│   └── getId.js       # Utility to get Telegram IDs
 ├── public/
 │   ├── index.html     # Dashboard HTML
 │   ├── css/
 │   │   └── style.css  # Styles with Telegram theme support
 │   └── js/
 │       └── app.js     # Frontend JavaScript
+├── whitelist.json     # Authorized admin user IDs (gitignored)
 ├── package.json
-├── .env.example
-└── README.md
+├── .env               # Environment configuration (gitignored)
+├── start.cmd          # Windows launch script
+├── start.ps1          # PowerShell launch script
+├── start.sh           # Linux/Mac launch script
+├── README.md          # This file
+└── ADMIN_PANEL.md     # Admin panel documentation
 ```
 
 ## Setup
@@ -37,6 +56,7 @@ npm install
 
 ```bash
 cp .env.example .env
+cp whitelist.json.example whitelist.json
 ```
 
 Edit `.env` and add your bot token:
@@ -45,6 +65,14 @@ Edit `.env` and add your bot token:
 BOT_TOKEN=your_bot_token_here
 WEB_APP_URL=https://your-domain.com
 PORT=3000
+```
+
+Edit `whitelist.json` and add your Telegram user ID:
+
+```json
+{
+  "authorizedUsers": [YOUR_TELEGRAM_ID]
+}
 ```
 
 ### 4. Install ngrok (for local development)
@@ -118,10 +146,19 @@ Update `WEB_APP_URL` in `.env` with your ngrok HTTPS URL.
 
 6. **Restart the server** (CTRL+C and run `start.cmd` or `start.sh` again)
 
-7. **Test in Telegram:**
-   - Open your bot
-   - Send `/start`
-   - Click "Open Dashboard"
+7. **Get your Telegram ID:**
+   - Open your bot in Telegram
+   - Send `/admin`
+   - The bot will show your Telegram ID in the access denied message
+
+8. **Add yourself to whitelist:**
+   - Edit `whitelist.json`
+   - Add your ID to the `authorizedUsers` array
+   - Restart the bot
+
+9. **Test admin panel:**
+   - Send `/admin` again
+   - You should now see the admin menu
 
 ## Usage
 
@@ -149,7 +186,70 @@ Update `WEB_APP_URL` in `.env` with your ngrok HTTPS URL.
 
 ## Bot Commands
 
-| Command  | Description            |
-|----------|------------------------|
-| `/start` | Open the dashboard     |
-| `/help`  | Show help message      |
+| Command  | Description                  | Access      |
+|----------|------------------------------|-------------|
+| `/start` | Open the dashboard           | All users   |
+| `/help`  | Show help message            | All users   |
+| `/admin` | Access admin panel           | Whitelisted |
+
+## Admin Panel Features
+
+The admin panel provides comprehensive management tools. See [ADMIN_PANEL.md](ADMIN_PANEL.md) for detailed documentation.
+
+### Quick Overview:
+
+### 🔗 App URL Management
+- View current Web App URL
+- Change the URL dynamically
+- No need to manually edit `.env`
+
+### 📡 API Information
+- Complete list of available endpoints
+- Request/response formats
+- Base URL and local server info
+
+### 📚 Setup Guide
+- Step-by-step launch instructions
+- Environment configuration
+- @BotFather setup guide
+
+### 👥 Whitelist Management
+- View authorized users
+- Instructions for adding/removing users
+
+### 🔐 Authorization
+
+Admin access is controlled via `whitelist.json`:
+
+1. **Get your Telegram ID (Method 1 - Quick):**
+   ```bash
+   npm run get-id
+   ```
+   Then send any message to your bot. Your ID will be displayed.
+
+2. **Get your Telegram ID (Method 2):**
+   - Send any message to the bot
+   - When denied admin access, it will show your ID
+
+3. **Add your ID to whitelist:**
+   ```json
+   {
+     "authorizedUsers": [123456789, 987654321],
+     "description": "Add Telegram user IDs that are allowed to access the admin panel"
+   }
+   ```
+
+4. **Restart the bot** to apply changes
+
+### ⚠️ Access Denied
+
+Unauthorized users will receive:
+```
+⛔ Access Denied
+
+You do not have permission to access the admin panel.
+
+Your Telegram ID: 123456789
+
+Contact the administrator to get access.
+```
