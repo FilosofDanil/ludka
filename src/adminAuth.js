@@ -23,28 +23,6 @@ class AdminAuth {
         return this.authorizedUsers.has(userId);
     }
 
-    addUser(userId) {
-        this.authorizedUsers.add(userId);
-        this.saveWhitelist();
-    }
-
-    removeUser(userId) {
-        this.authorizedUsers.delete(userId);
-        this.saveWhitelist();
-    }
-
-    saveWhitelist() {
-        try {
-            const data = {
-                authorizedUsers: Array.from(this.authorizedUsers),
-                description: "Add Telegram user IDs that are allowed to access the admin panel"
-            };
-            fs.writeFileSync(whitelistPath, JSON.stringify(data, null, 2));
-        } catch (error) {
-            console.error('Failed to save whitelist.json:', error.message);
-        }
-    }
-
     getAuthorizedUsers() {
         return Array.from(this.authorizedUsers);
     }

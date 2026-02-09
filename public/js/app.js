@@ -1,9 +1,6 @@
-// Initialize Telegram Web App
 const tg = window.Telegram?.WebApp;
 
-// App initialization
 function init() {
-    // Expand the Web App to full height
     if (tg) {
         tg.ready();
         tg.expand();
@@ -15,50 +12,36 @@ function init() {
     setupActionButtons();
 }
 
-// Apply Telegram theme colors
 function applyTelegramTheme() {
     if (!tg?.themeParams) return;
 
     const root = document.documentElement;
     const theme = tg.themeParams;
+    const mapping = {
+        bg_color: '--tg-theme-bg-color',
+        text_color: '--tg-theme-text-color',
+        hint_color: '--tg-theme-hint-color',
+        link_color: '--tg-theme-link-color',
+        button_color: '--tg-theme-button-color',
+        button_text_color: '--tg-theme-button-text-color',
+        secondary_bg_color: '--tg-theme-secondary-bg-color'
+    };
 
-    if (theme.bg_color) {
-        root.style.setProperty('--tg-theme-bg-color', theme.bg_color);
-    }
-    if (theme.text_color) {
-        root.style.setProperty('--tg-theme-text-color', theme.text_color);
-    }
-    if (theme.hint_color) {
-        root.style.setProperty('--tg-theme-hint-color', theme.hint_color);
-    }
-    if (theme.link_color) {
-        root.style.setProperty('--tg-theme-link-color', theme.link_color);
-    }
-    if (theme.button_color) {
-        root.style.setProperty('--tg-theme-button-color', theme.button_color);
-    }
-    if (theme.button_text_color) {
-        root.style.setProperty('--tg-theme-button-text-color', theme.button_text_color);
-    }
-    if (theme.secondary_bg_color) {
-        root.style.setProperty('--tg-theme-secondary-bg-color', theme.secondary_bg_color);
+    for (const [key, cssVar] of Object.entries(mapping)) {
+        if (theme[key]) root.style.setProperty(cssVar, theme[key]);
     }
 }
 
-// Setup Telegram Main Button
 function setupMainButton() {
     if (!tg?.MainButton) return;
 
     tg.MainButton.setText('Send to Bot');
     tg.MainButton.onClick(() => {
         const formData = getFormData();
-        if (validateForm(formData)) {
-            sendDataToBot(formData);
-        }
+        if (validateForm(formData)) sendDataToBot(formData);
     });
 }
 
-// Show/hide main button based on form validity
 function updateMainButton() {
     if (!tg?.MainButton) return;
 
@@ -70,7 +53,6 @@ function updateMainButton() {
     }
 }
 
-// Get form data
 function getFormData() {
     return {
         name: document.getElementById('name').value.trim(),
@@ -79,33 +61,25 @@ function getFormData() {
     };
 }
 
-// Validate form
 function validateForm(data) {
     if (!data.name) {
         showResponse('Please enter your name', 'error');
         return false;
     }
-    if (!data.email || !isValidEmail(data.email)) {
+    if (!data.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email)) {
         showResponse('Please enter a valid email', 'error');
         return false;
     }
     return true;
 }
 
-// Email validation
-function isValidEmail(email) {
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-}
-
-// Setup form handlers
 function setupFormHandlers() {
     const form = document.getElementById('dashboardForm');
     const clearBtn = document.getElementById('clearBtn');
 
-    // Form submission
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
-        
+
         const formData = getFormData();
         if (!validateForm(formData)) return;
 
@@ -115,7 +89,6 @@ function setupFormHandlers() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(formData)
             });
-
             const result = await response.json();
 
             if (result.success) {
@@ -131,55 +104,25 @@ function setupFormHandlers() {
         }
     });
 
-    // Clear button
     clearBtn.addEventListener('click', () => {
         form.reset();
         hideResponse();
         updateMainButton();
     });
 
-    // Update main button on input
     form.addEventListener('input', updateMainButton);
 }
 
-// Setup action buttons
 function setupActionButtons() {
-    const actionButtons = document.querySelectorAll('.btn-action');
-
-    actionButtons.forEach(btn => {
+    document.querySelectorAll('.btn-action').forEach(btn => {
         btn.addEventListener('click', () => {
-            const action = btn.dataset.action;
-            handleAction(action);
+            if (tg?.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
+            showResponse(`${btn.textContent} executed!`, 'success');
+            setTimeout(hideResponse, 2000);
         });
     });
 }
 
-// Handle action button clicks
-function handleAction(action) {
-    // Haptic feedback if available
-    if (tg?.HapticFeedback) {
-        tg.HapticFeedback.impactOccurred('light');
-    }
-
-    switch (action) {
-        case 'action1':
-            showResponse('Action 1 executed!', 'success');
-            break;
-        case 'action2':
-            showResponse('Action 2 executed!', 'success');
-            break;
-        case 'action3':
-            showResponse('Action 3 executed!', 'success');
-            break;
-        default:
-            showResponse('Unknown action', 'error');
-    }
-
-    // Auto-hide response after 2 seconds
-    setTimeout(hideResponse, 2000);
-}
-
-// Send data to Telegram bot
 function sendDataToBot(data) {
     if (tg?.sendData) {
         tg.sendData(JSON.stringify(data));
@@ -189,18 +132,14 @@ function sendDataToBot(data) {
     }
 }
 
-// Show response message
 function showResponse(message, type) {
-    const responseEl = document.getElementById('response');
-    responseEl.textContent = message;
-    responseEl.className = `response ${type}`;
+    const el = document.getElementById('response');
+    el.textContent = message;
+    el.className = `response ${type}`;
 }
 
-// Hide response message
 function hideResponse() {
-    const responseEl = document.getElementById('response');
-    responseEl.className = 'response hidden';
+    document.getElementById('response').className = 'response hidden';
 }
 
-// Initialize when DOM is ready
 document.addEventListener('DOMContentLoaded', init);
