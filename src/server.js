@@ -4,6 +4,7 @@ const path = require('path');
 const { initBot } = require('./bot');
 const userBalance = require('./userBalance');
 const diceGame = require('./games/dice');
+const rouletteGame = require('./games/roulette');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -105,6 +106,74 @@ app.post('/api/games/dice/bet', (req, res) => {
     });
 });
 
+// --- Roulette Game ---
+
+app.get('/api/games/roulette/info', (req, res) => {
+    res.json({
+        success: true,
+        name: 'Roulette',
+        description: 'European roulette — place your bets and spin the wheel!',
+        betTypes: rouletteGame.getBetInfo(),
+        redNumbers: [...rouletteGame.RED_NUMBERS],
+        blackNumbers: [...rouletteGame.BLACK_NUMBERS]
+    });
+});
+
+app.post('/api/games/roulette/bet', (req, res) => {
+    const { userId, betAmount, betType, betNumber } = req.body;
+
+    if (!userId) {
+        return res.status(400).json({ success: false, error: 'userId is required' });
+    }
+
+    const amount = parseFloat(betAmount);
+    if (isNaN(amount) || amount <= 0) {
+        return res.status(400).json({ success: false, error: 'Invalid bet amount' });
+    }
+
+    // Check and deduct balance
+    const deductResult = userBalance.deductBet(userId, amount);
+    if (!deductResult.success) {
+        return res.status(400).json(deductResult);
+    }
+
+    // Play the roulette game
+    const result = rouletteGame.play(amount, betType, betNumber);
+
+    if (!result.success) {
+        // Refund on game logic error
+        userBalance.addWinnings(userId, amount);
+        return res.status(400).json(result);
+    }
+
+    // Add winnings if won
+    if (result.won) {
+        userBalance.addWinnings(userId, result.payout);
+    }
+
+    const finalBalance = userBalance.getBalance(userId);
+
+    // Record history
+    userBalance.addHistoryEntry(userId, {
+        game: 'roulette',
+        betAmount: amount,
+        betType: result.betType,
+        betNumber: result.betNumber,
+        result: result.result,
+        resultColor: result.resultColor,
+        won: result.won,
+        multiplier: result.multiplier,
+        payout: result.payout,
+        profit: result.profit,
+        balanceAfter: finalBalance
+    });
+
+    res.json({
+        ...result,
+        balance: finalBalance
+    });
+});
+
 // --- Legacy form submit (kept for compatibility) ---
 
 app.post('/api/submit', (req, res) => {
@@ -114,8 +183,31 @@ app.post('/api/submit', (req, res) => {
 });
 
 // Start server
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
     console.log(`Server running on port ${PORT}`);
+
+    // Start ngrok tunnel
+    if (process.env.NGROK_AUTHTOKEN) {
+        try {
+            const ngrok = require('@ngrok/ngrok');
+            const listener = await ngrok.connect({
+                addr: PORT,
+                authtoken: process.env.NGROK_AUTHTOKEN
+            });
+            const publicUrl = listener.url();
+            console.log(`\n========================================`);
+            console.log(`  Ngrok tunnel established!`);
+            console.log(`  Public URL: ${publicUrl}`);
+            console.log(`========================================\n`);
+
+            // Update WEB_APP_URL for the bot
+            process.env.WEB_APP_URL = publicUrl;
+        } catch (err) {
+            console.error('Failed to start ngrok tunnel:', err.message);
+        }
+    } else {
+        console.warn('NGROK_AUTHTOKEN not set. Ngrok tunnel is disabled.');
+    }
 
     if (process.env.BOT_TOKEN) {
         initBot();

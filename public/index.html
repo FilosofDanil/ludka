@@ -24,72 +24,164 @@
         </header>
 
         <main class="main">
-            <!-- Dice Display Area -->
-            <section class="dice-arena">
-                <div class="dice-result-info" id="resultInfo"></div>
-                <div class="dice-container" id="diceContainer">
-                    <div class="dice" id="dice">
-                        <div class="dice-face" id="diceFace">?</div>
-                    </div>
-                </div>
-                <div class="last-results" id="lastResults"></div>
-            </section>
-
-            <!-- Bet Controls -->
-            <section class="bet-controls">
-                <!-- Target Selection -->
-                <div class="control-group">
-                    <label class="control-label">Target Number</label>
-                    <div class="target-selector">
-                        <button class="target-btn" data-target="1">1</button>
-                        <button class="target-btn" data-target="2">2</button>
-                        <button class="target-btn active" data-target="3">3</button>
-                        <button class="target-btn" data-target="4">4</button>
-                        <button class="target-btn" data-target="5">5</button>
-                        <button class="target-btn" data-target="6">6</button>
-                    </div>
-                </div>
-
-                <!-- Direction Selection -->
-                <div class="control-group">
-                    <label class="control-label">Your Bet</label>
-                    <div class="direction-selector">
-                        <button class="direction-btn active" data-direction="higher" id="btnHigher">
-                            <span class="direction-arrow">&#9650;</span>
-                            <span class="direction-text">Higher</span>
-                            <span class="direction-coef" id="coefHigher">1.96x</span>
-                        </button>
-                        <button class="direction-btn" data-direction="lower" id="btnLower">
-                            <span class="direction-arrow">&#9660;</span>
-                            <span class="direction-text">Lower</span>
-                            <span class="direction-coef" id="coefLower">1.96x</span>
-                        </button>
-                    </div>
-                    <div class="win-chance" id="winChance">Win chance: 50%</div>
-                </div>
-
-                <!-- Bet Amount -->
-                <div class="control-group">
-                    <label class="control-label">Bet Amount</label>
-                    <div class="bet-input-row">
-                        <button class="bet-quick-btn" data-action="half">½</button>
-                        <input type="number" class="bet-input" id="betAmount" value="10" min="1" step="1">
-                        <button class="bet-quick-btn" data-action="double">2x</button>
-                        <button class="bet-quick-btn" data-action="max">Max</button>
-                    </div>
-                </div>
-
-                <!-- Potential Win -->
-                <div class="potential-win">
-                    <span class="potential-label">Potential Win</span>
-                    <span class="potential-amount" id="potentialWin">19.60</span>
-                </div>
-
-                <!-- Roll Button -->
-                <button class="btn-roll" id="rollBtn">
-                    <span class="roll-text">Roll Dice</span>
+            <!-- Game Switcher -->
+            <nav class="game-switcher">
+                <button class="game-tab active" data-game="dice">
+                    <span class="game-tab-icon">&#127922;</span>
+                    <span class="game-tab-label">Dice</span>
                 </button>
-            </section>
+                <button class="game-tab" data-game="roulette">
+                    <span class="game-tab-icon">&#127920;</span>
+                    <span class="game-tab-label">Roulette</span>
+                </button>
+            </nav>
+
+            <!-- ======== DICE GAME ======== -->
+            <div class="game-panel active" id="game-dice">
+                <section class="dice-arena">
+                    <div class="dice-result-info" id="resultInfo"></div>
+                    <div class="dice-container" id="diceContainer">
+                        <div class="dice" id="dice">
+                            <div class="dice-face" id="diceFace">?</div>
+                        </div>
+                    </div>
+                    <div class="last-results" id="lastResults"></div>
+                </section>
+
+                <section class="bet-controls">
+                    <div class="control-group">
+                        <label class="control-label">Target Number</label>
+                        <div class="target-selector">
+                            <button class="target-btn" data-target="1">1</button>
+                            <button class="target-btn" data-target="2">2</button>
+                            <button class="target-btn active" data-target="3">3</button>
+                            <button class="target-btn" data-target="4">4</button>
+                            <button class="target-btn" data-target="5">5</button>
+                            <button class="target-btn" data-target="6">6</button>
+                        </div>
+                    </div>
+
+                    <div class="control-group">
+                        <label class="control-label">Your Bet</label>
+                        <div class="direction-selector">
+                            <button class="direction-btn active" data-direction="higher" id="btnHigher">
+                                <span class="direction-arrow">&#9650;</span>
+                                <span class="direction-text">Higher</span>
+                                <span class="direction-coef" id="coefHigher">1.96x</span>
+                            </button>
+                            <button class="direction-btn" data-direction="lower" id="btnLower">
+                                <span class="direction-arrow">&#9660;</span>
+                                <span class="direction-text">Lower</span>
+                                <span class="direction-coef" id="coefLower">1.96x</span>
+                            </button>
+                        </div>
+                        <div class="win-chance" id="winChance">Win chance: 50%</div>
+                    </div>
+
+                    <div class="control-group">
+                        <label class="control-label">Bet Amount</label>
+                        <div class="bet-input-row">
+                            <button class="bet-quick-btn" data-action="half">½</button>
+                            <input type="number" class="bet-input" id="betAmount" value="10" min="1" step="1">
+                            <button class="bet-quick-btn" data-action="double">2x</button>
+                            <button class="bet-quick-btn" data-action="max">Max</button>
+                        </div>
+                    </div>
+
+                    <div class="potential-win">
+                        <span class="potential-label">Potential Win</span>
+                        <span class="potential-amount" id="potentialWin">19.60</span>
+                    </div>
+
+                    <button class="btn-roll" id="rollBtn">
+                        <span class="roll-text">Roll Dice</span>
+                    </button>
+                </section>
+            </div>
+
+            <!-- ======== ROULETTE GAME ======== -->
+            <div class="game-panel" id="game-roulette">
+                <!-- Wheel & result -->
+                <section class="roulette-arena">
+                    <div class="roulette-result-info" id="rouletteResultInfo"></div>
+                    <div class="roulette-wheel-wrap">
+                        <div class="roulette-wheel" id="rouletteWheel">
+                            <div class="roulette-number" id="rouletteNumber">?</div>
+                        </div>
+                    </div>
+                    <div class="last-results" id="rouletteLastResults"></div>
+                </section>
+
+                <!-- Roulette Bet Controls -->
+                <section class="bet-controls">
+                    <!-- Bet Type -->
+                    <div class="control-group">
+                        <label class="control-label">Bet Type</label>
+                        <div class="roulette-bet-types">
+                            <button class="roulette-type-btn active" data-bet-type="red">
+                                <span class="rtype-dot rtype-red"></span> Red
+                                <span class="rtype-payout">2x</span>
+                            </button>
+                            <button class="roulette-type-btn" data-bet-type="black">
+                                <span class="rtype-dot rtype-black"></span> Black
+                                <span class="rtype-payout">2x</span>
+                            </button>
+                            <button class="roulette-type-btn" data-bet-type="odd">
+                                Odd <span class="rtype-payout">2x</span>
+                            </button>
+                            <button class="roulette-type-btn" data-bet-type="even">
+                                Even <span class="rtype-payout">2x</span>
+                            </button>
+                            <button class="roulette-type-btn" data-bet-type="low">
+                                1-18 <span class="rtype-payout">2x</span>
+                            </button>
+                            <button class="roulette-type-btn" data-bet-type="high">
+                                19-36 <span class="rtype-payout">2x</span>
+                            </button>
+                            <button class="roulette-type-btn" data-bet-type="dozen1">
+                                1st 12 <span class="rtype-payout">3x</span>
+                            </button>
+                            <button class="roulette-type-btn" data-bet-type="dozen2">
+                                2nd 12 <span class="rtype-payout">3x</span>
+                            </button>
+                            <button class="roulette-type-btn" data-bet-type="dozen3">
+                                3rd 12 <span class="rtype-payout">3x</span>
+                            </button>
+                            <button class="roulette-type-btn" data-bet-type="straight">
+                                # Straight <span class="rtype-payout">36x</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Straight number picker (hidden unless betType=straight) -->
+                    <div class="control-group roulette-straight-picker hidden" id="straightPicker">
+                        <label class="control-label">Pick a Number (0-36)</label>
+                        <div class="straight-number-grid" id="straightNumberGrid"></div>
+                    </div>
+
+                    <!-- Bet Amount -->
+                    <div class="control-group">
+                        <label class="control-label">Bet Amount</label>
+                        <div class="bet-input-row">
+                            <button class="bet-quick-btn roulette-quick" data-action="half">½</button>
+                            <input type="number" class="bet-input" id="rouletteBetAmount" value="10" min="1" step="1">
+                            <button class="bet-quick-btn roulette-quick" data-action="double">2x</button>
+                            <button class="bet-quick-btn roulette-quick" data-action="max">Max</button>
+                        </div>
+                    </div>
+
+                    <!-- Potential Win -->
+                    <div class="potential-win">
+                        <span class="potential-label">Potential Win</span>
+                        <span class="potential-amount" id="roulettePotentialWin">20.00</span>
+                    </div>
+
+                    <!-- Spin Button -->
+                    <button class="btn-roll btn-spin" id="spinBtn">
+                        <span class="roll-text">Spin Wheel</span>
+                    </button>
+                </section>
+            </div>
         </main>
 
         <!-- History Modal -->
