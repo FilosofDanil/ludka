@@ -1,6 +1,7 @@
 const TelegramBot = require('node-telegram-bot-api');
 const adminAuth = require('./adminAuth');
 const adminPanel = require('./adminPanel');
+const userBalance = require('./userBalance');
 
 let bot = null;
 const userStates = new Map();
@@ -15,6 +16,7 @@ function initBot() {
 
     bot = new TelegramBot(token, { polling: true });
 
+    // /start command
     bot.onText(/\/start/, (msg) => {
         const chatId = msg.chat.id;
         const userName = msg.from.first_name || 'User';
@@ -22,20 +24,36 @@ function initBot() {
 
         bot.sendMessage(
             chatId,
-            `Welcome, ${userName}! 👋\n\nTap the button below to open the dashboard.`,
+            `Welcome to Ludik Casino, ${userName}! \n\n` +
+            `Roll the dice, place your bets, and test your luck!\n\n` +
+            `You start with ${userBalance.INITIAL_BALANCE} coins. Tap below to play!`,
             {
                 reply_markup: {
                     inline_keyboard: [[
-                        { text: '🎮 Open Dashboard', web_app: { url: webAppUrl || 'https://example.com' } }
+                        { text: 'Play Dice Game', web_app: { url: webAppUrl || 'https://example.com' } }
                     ]]
                 }
             }
         );
     });
 
+    // /balance command
+    bot.onText(/\/balance/, (msg) => {
+        const userId = String(msg.from.id);
+        const balance = userBalance.getBalance(userId);
+        bot.sendMessage(
+            msg.chat.id,
+            `Your balance: *${balance.toFixed(2)}* coins`,
+            { parse_mode: 'Markdown' }
+        );
+    });
+
+    // /help command
     bot.onText(/\/help/, (msg) => {
-        let helpText = '📖 *Available Commands:*\n\n' +
-                      '/start - Open the dashboard\n' +
+        let helpText = '*Ludik Casino — Commands:*\n\n' +
+                      '/start - Open the dice game\n' +
+                      '/balance - Check your balance\n' +
+                      '/reset - Reset balance to starting amount\n' +
                       '/help - Show this help message';
 
         if (adminAuth.isAuthorized(msg.from.id)) {
@@ -45,6 +63,18 @@ function initBot() {
         bot.sendMessage(msg.chat.id, helpText, { parse_mode: 'Markdown' });
     });
 
+    // /reset command
+    bot.onText(/\/reset/, (msg) => {
+        const userId = String(msg.from.id);
+        const result = userBalance.resetBalance(userId);
+        bot.sendMessage(
+            msg.chat.id,
+            `Balance reset! You now have *${result.balance.toFixed(2)}* coins.`,
+            { parse_mode: 'Markdown' }
+        );
+    });
+
+    // /admin command
     bot.onText(/\/admin/, (msg) => {
         const chatId = msg.chat.id;
         const userId = msg.from.id;
@@ -52,7 +82,7 @@ function initBot() {
         if (!adminAuth.isAuthorized(userId)) {
             bot.sendMessage(
                 chatId,
-                '⛔ *Access Denied*\n\n' +
+                '*Access Denied*\n\n' +
                 'You do not have permission to access the admin panel.\n\n' +
                 `Your Telegram ID: \`${userId}\`\n\n` +
                 'Contact the administrator to get access.',
@@ -64,6 +94,7 @@ function initBot() {
         sendAdminMenu(chatId);
     });
 
+    // Callback queries
     bot.on('callback_query', (query) => {
         const chatId = query.message.chat.id;
         const userId = query.from.id;
@@ -71,7 +102,7 @@ function initBot() {
         const messageId = query.message.message_id;
 
         if (data.startsWith('admin_') && !adminAuth.isAuthorized(userId)) {
-            bot.answerCallbackQuery(query.id, { text: '⛔ Access denied' });
+            bot.answerCallbackQuery(query.id, { text: 'Access denied' });
             return;
         }
 
@@ -84,7 +115,7 @@ function initBot() {
 
             case 'admin_view_url':
                 bot.editMessageText(
-                    `🔗 *Current App URL*\n\n\`${adminPanel.getCurrentAppUrl()}\`\n\n` +
+                    `*Current App URL*\n\n\`${adminPanel.getCurrentAppUrl()}\`\n\n` +
                     `This is the URL users access when they open your mini app.`,
                     { chat_id: chatId, message_id: messageId, parse_mode: 'Markdown', ...adminPanel.getBackButton() }
                 );
@@ -93,7 +124,7 @@ function initBot() {
             case 'admin_change_url':
                 userStates.set(userId, 'awaiting_url');
                 bot.editMessageText(
-                    '✏️ *Change App URL*\n\n' +
+                    '*Change App URL*\n\n' +
                     'Please send the new HTTPS URL for your mini app.\n\n' +
                     'Example: `https://abc123.ngrok.io`\n\n' +
                     'Send /cancel to abort.',
@@ -125,11 +156,12 @@ function initBot() {
         }
     });
 
+    // General message handler
     bot.on('message', (msg) => {
         if (msg.text && msg.text.startsWith('/')) {
             if (msg.text === '/cancel' && userStates.has(msg.from.id)) {
                 userStates.delete(msg.from.id);
-                bot.sendMessage(msg.chat.id, '❌ Operation cancelled.');
+                bot.sendMessage(msg.chat.id, 'Operation cancelled.');
             }
             return;
         }
@@ -142,21 +174,21 @@ function initBot() {
             const newUrl = msg.text.trim();
 
             if (!newUrl.startsWith('http://') && !newUrl.startsWith('https://')) {
-                bot.sendMessage(chatId, '⚠️ Invalid URL format. Please provide a valid HTTP/HTTPS URL.\n\nSend /cancel to abort.');
+                bot.sendMessage(chatId, 'Invalid URL format. Please provide a valid HTTP/HTTPS URL.\n\nSend /cancel to abort.');
                 return;
             }
 
             if (adminPanel.updateAppUrl(newUrl)) {
                 bot.sendMessage(
                     chatId,
-                    `✅ *App URL Updated Successfully*\n\n` +
+                    `*App URL Updated Successfully*\n\n` +
                     `New URL: \`${newUrl}\`\n\n` +
-                    `⚠️ *Important:* Please restart the bot for changes to take effect.\n` +
+                    `*Important:* Please restart the bot for changes to take effect.\n` +
                     `You may also need to update the URL in @BotFather.`,
                     { parse_mode: 'Markdown' }
                 );
             } else {
-                bot.sendMessage(chatId, '❌ Failed to update URL. Please check file permissions and try again.');
+                bot.sendMessage(chatId, 'Failed to update URL. Please check file permissions and try again.');
             }
 
             userStates.delete(userId);
@@ -165,21 +197,22 @@ function initBot() {
         }
 
         if (!state) {
-            bot.sendMessage(chatId, 'Use /start to open the dashboard or /help for available commands.');
+            bot.sendMessage(chatId, 'Use /start to play or /help for available commands.');
         }
     });
 
+    // Web App data handler
     bot.on('web_app_data', (msg) => {
         const data = JSON.parse(msg.web_app_data.data);
         console.log('Received Web App data:', data);
-        bot.sendMessage(msg.chat.id, `✅ Data received!\n\nName: ${data.name}\nEmail: ${data.email}\nMessage: ${data.message}`);
+        bot.sendMessage(msg.chat.id, `Data received!\n\n${JSON.stringify(data, null, 2)}`);
     });
 
     console.log('Telegram bot initialized successfully');
 }
 
 function sendAdminMenu(chatId, messageId = null) {
-    const menuText = '🔧 *Admin Panel*\n\nWelcome to the admin panel. Select an option below:';
+    const menuText = '*Admin Panel*\n\nWelcome to the admin panel. Select an option below:';
     const options = { parse_mode: 'Markdown', ...adminPanel.getMainMenu() };
 
     if (messageId) {

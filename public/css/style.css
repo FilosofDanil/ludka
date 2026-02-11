@@ -1,17 +1,35 @@
+/* =============================================
+   Ludik Casino — Dice Game Theme
+   ============================================= */
+
 :root {
-    --tg-theme-bg-color: #ffffff;
-    --tg-theme-text-color: #000000;
-    --tg-theme-hint-color: #999999;
-    --tg-theme-link-color: #2481cc;
-    --tg-theme-button-color: #2481cc;
+    --tg-theme-bg-color: #0f0f1a;
+    --tg-theme-text-color: #e8e8f0;
+    --tg-theme-hint-color: #8888aa;
+    --tg-theme-link-color: #6c5ce7;
+    --tg-theme-button-color: #6c5ce7;
     --tg-theme-button-text-color: #ffffff;
-    --tg-theme-secondary-bg-color: #f0f0f0;
+    --tg-theme-secondary-bg-color: #1a1a2e;
+
+    --color-win: #00d68f;
+    --color-win-bg: rgba(0, 214, 143, 0.12);
+    --color-lose: #ff4757;
+    --color-lose-bg: rgba(255, 71, 87, 0.12);
+    --color-gold: #ffc048;
+    --color-surface: #1e1e35;
+    --color-surface-light: #2a2a45;
+    --color-border: rgba(255, 255, 255, 0.06);
+
+    --radius: 14px;
+    --radius-sm: 10px;
+    --shadow-card: 0 4px 24px rgba(0, 0, 0, 0.3);
 }
 
 * {
     margin: 0;
     padding: 0;
     box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
 }
 
 body {
@@ -20,106 +38,690 @@ body {
     color: var(--tg-theme-text-color);
     min-height: 100vh;
     line-height: 1.5;
+    overflow-x: hidden;
 }
 
 .container {
-    max-width: 100%;
-    padding: 16px;
+    max-width: 480px;
+    margin: 0 auto;
+    padding: 0 16px 16px;
     display: flex;
     flex-direction: column;
     min-height: 100vh;
 }
 
-/* Header */
+/* =============================================
+   Header & Balance
+   ============================================= */
+
 .header {
-    text-align: center;
-    padding: 20px 0;
-    border-bottom: 1px solid var(--tg-theme-secondary-bg-color);
-    margin-bottom: 20px;
+    padding: 16px 0 12px;
+    position: sticky;
+    top: 0;
+    background: var(--tg-theme-bg-color);
+    z-index: 10;
 }
 
-.header h1 {
-    font-size: 24px;
-    font-weight: 600;
-    margin-bottom: 4px;
+.header-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
 }
 
-.subtitle {
+.header-top h1 {
+    font-size: 20px;
+    font-weight: 700;
+    background: linear-gradient(135deg, var(--color-gold), #ff6b6b);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.btn-icon {
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 50%;
     color: var(--tg-theme-hint-color);
-    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s;
 }
 
-/* Main Content */
+.btn-icon:hover {
+    background: var(--color-surface-light);
+    color: var(--tg-theme-text-color);
+}
+
+.balance-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    padding: 12px 16px;
+}
+
+.balance-label {
+    font-size: 13px;
+    color: var(--tg-theme-hint-color);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-weight: 600;
+}
+
+.balance-amount {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--color-gold);
+    font-variant-numeric: tabular-nums;
+}
+
+.balance-amount.flash {
+    animation: flashBalance 0.4s ease;
+}
+
+@keyframes flashBalance {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.08); }
+    100% { transform: scale(1); }
+}
+
+/* =============================================
+   Dice Arena
+   ============================================= */
+
 .main {
     flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
 }
 
-/* Form Styles */
-.form {
-    margin-bottom: 24px;
+.dice-arena {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px 0;
+    position: relative;
 }
 
-.form-group {
-    margin-bottom: 16px;
-}
-
-.form-group label {
-    display: block;
+.dice-result-info {
     font-size: 14px;
-    font-weight: 500;
-    margin-bottom: 6px;
-    color: var(--tg-theme-text-color);
+    font-weight: 600;
+    text-align: center;
+    padding: 8px 16px;
+    border-radius: var(--radius-sm);
+    margin-bottom: 12px;
+    min-height: 36px;
+    opacity: 0;
+    transform: translateY(-8px);
+    transition: opacity 0.3s, transform 0.3s;
 }
 
-.form-group input,
-.form-group textarea {
-    width: 100%;
-    padding: 12px;
-    font-size: 16px;
-    border: 1px solid var(--tg-theme-secondary-bg-color);
-    border-radius: 10px;
-    background-color: var(--tg-theme-secondary-bg-color);
-    color: var(--tg-theme-text-color);
-    transition: border-color 0.2s, box-shadow 0.2s;
+.dice-result-info.show {
+    opacity: 1;
+    transform: translateY(0);
 }
 
-.form-group input:focus,
-.form-group textarea:focus {
-    outline: none;
-    border-color: var(--tg-theme-button-color);
-    box-shadow: 0 0 0 3px rgba(36, 129, 204, 0.1);
+.dice-result-info.result-win {
+    color: var(--color-win);
+    background: var(--color-win-bg);
 }
 
-.form-group input::placeholder,
-.form-group textarea::placeholder {
+.dice-result-info.result-lose {
+    color: var(--color-lose);
+    background: var(--color-lose-bg);
+}
+
+.dice-container {
+    perspective: 400px;
+    margin: 8px 0 16px;
+}
+
+.dice {
+    width: 100px;
+    height: 100px;
+    background: linear-gradient(145deg, #2d2d50, #1a1a35);
+    border: 2px solid var(--color-surface-light);
+    border-radius: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow:
+        0 8px 32px rgba(0, 0, 0, 0.4),
+        inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    transition: transform 0.15s ease;
+}
+
+.dice-face {
+    width: 80px;
+    height: 80px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 42px;
+    font-weight: 700;
     color: var(--tg-theme-hint-color);
 }
 
-.form-group textarea {
-    resize: vertical;
-    min-height: 80px;
+/* Dice dots grid */
+.dice-dots {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(3, 1fr);
+    width: 70px;
+    height: 70px;
+    gap: 2px;
 }
 
-/* Buttons */
-.button-group {
+.dot-cell {
     display: flex;
-    gap: 12px;
-    margin-top: 20px;
+    align-items: center;
+    justify-content: center;
 }
+
+.dot-cell.dot-active::after {
+    content: '';
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--tg-theme-text-color);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+}
+
+/* Dice Animations */
+.dice.spinning {
+    animation: diceSpinPulse 0.3s infinite ease-in-out;
+}
+
+@keyframes diceSpinPulse {
+    0% { transform: rotateX(0deg) scale(1); }
+    25% { transform: rotateX(15deg) scale(0.95); }
+    50% { transform: rotateX(0deg) scale(1.02); }
+    75% { transform: rotateX(-15deg) scale(0.95); }
+    100% { transform: rotateX(0deg) scale(1); }
+}
+
+.dice.win-shake {
+    animation: winShake 0.5s ease;
+}
+
+@keyframes winShake {
+    0% { transform: scale(1); border-color: var(--color-surface-light); }
+    30% { transform: scale(1.1); border-color: var(--color-win); box-shadow: 0 0 30px rgba(0, 214, 143, 0.3); }
+    60% { transform: scale(0.95); }
+    100% { transform: scale(1); border-color: var(--color-surface-light); }
+}
+
+.dice.lose-shake {
+    animation: loseShake 0.5s ease;
+}
+
+@keyframes loseShake {
+    0%, 100% { transform: translateX(0); }
+    20% { transform: translateX(-8px); border-color: var(--color-lose); }
+    40% { transform: translateX(8px); }
+    60% { transform: translateX(-4px); }
+    80% { transform: translateX(4px); }
+}
+
+/* Last results strip */
+.last-results {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.result-chip {
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.chip-win {
+    background: var(--color-win-bg);
+    color: var(--color-win);
+    border: 1px solid rgba(0, 214, 143, 0.25);
+}
+
+.chip-lose {
+    background: var(--color-lose-bg);
+    color: var(--color-lose);
+    border: 1px solid rgba(255, 71, 87, 0.25);
+}
+
+/* =============================================
+   Bet Controls
+   ============================================= */
+
+.bet-controls {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    padding: 20px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+
+.control-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.control-label {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--tg-theme-hint-color);
+    font-weight: 600;
+}
+
+/* Target Selector */
+.target-selector {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 6px;
+}
+
+.target-btn {
+    padding: 12px 0;
+    font-size: 18px;
+    font-weight: 700;
+    border: 2px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--tg-theme-bg-color);
+    color: var(--tg-theme-text-color);
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.target-btn:hover {
+    border-color: var(--tg-theme-button-color);
+    background: rgba(108, 92, 231, 0.08);
+}
+
+.target-btn.active {
+    border-color: var(--tg-theme-button-color);
+    background: rgba(108, 92, 231, 0.15);
+    color: var(--tg-theme-button-color);
+    box-shadow: 0 0 12px rgba(108, 92, 231, 0.2);
+}
+
+/* Direction Selector */
+.direction-selector {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
+.direction-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: 14px 12px;
+    border: 2px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--tg-theme-bg-color);
+    color: var(--tg-theme-text-color);
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.direction-btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+.direction-btn:not(:disabled):hover {
+    border-color: var(--tg-theme-button-color);
+}
+
+.direction-arrow {
+    font-size: 18px;
+}
+
+.direction-text {
+    font-size: 15px;
+    font-weight: 600;
+}
+
+.direction-coef {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--color-gold);
+}
+
+.direction-btn.active {
+    border-color: var(--tg-theme-button-color);
+    background: rgba(108, 92, 231, 0.12);
+}
+
+.direction-btn.active[data-direction="higher"] {
+    border-color: var(--color-win);
+    background: var(--color-win-bg);
+}
+
+.direction-btn.active[data-direction="higher"] .direction-arrow {
+    color: var(--color-win);
+}
+
+.direction-btn.active[data-direction="lower"] {
+    border-color: var(--color-lose);
+    background: var(--color-lose-bg);
+}
+
+.direction-btn.active[data-direction="lower"] .direction-arrow {
+    color: var(--color-lose);
+}
+
+.win-chance {
+    text-align: center;
+    font-size: 13px;
+    color: var(--tg-theme-hint-color);
+    font-weight: 500;
+}
+
+/* Bet Amount */
+.bet-input-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.bet-input {
+    flex: 1;
+    padding: 12px 14px;
+    font-size: 18px;
+    font-weight: 600;
+    text-align: center;
+    border: 2px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--tg-theme-bg-color);
+    color: var(--tg-theme-text-color);
+    outline: none;
+    transition: border-color 0.2s;
+    -moz-appearance: textfield;
+    font-variant-numeric: tabular-nums;
+}
+
+.bet-input::-webkit-outer-spin-button,
+.bet-input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+.bet-input:focus {
+    border-color: var(--tg-theme-button-color);
+}
+
+.bet-quick-btn {
+    padding: 12px 14px;
+    font-size: 14px;
+    font-weight: 700;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface-light);
+    color: var(--tg-theme-hint-color);
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+}
+
+.bet-quick-btn:hover {
+    background: var(--tg-theme-button-color);
+    color: var(--tg-theme-button-text-color);
+    border-color: var(--tg-theme-button-color);
+}
+
+.bet-quick-btn:active {
+    transform: scale(0.95);
+}
+
+/* Potential Win */
+.potential-win {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    background: rgba(255, 192, 72, 0.06);
+    border: 1px solid rgba(255, 192, 72, 0.15);
+    border-radius: var(--radius-sm);
+}
+
+.potential-label {
+    font-size: 13px;
+    color: var(--tg-theme-hint-color);
+    font-weight: 500;
+}
+
+.potential-amount {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--color-gold);
+    font-variant-numeric: tabular-nums;
+}
+
+/* Roll Button */
+.btn-roll {
+    width: 100%;
+    padding: 16px;
+    font-size: 18px;
+    font-weight: 700;
+    border: none;
+    border-radius: var(--radius);
+    background: linear-gradient(135deg, var(--tg-theme-button-color), #5a4bd1);
+    color: var(--tg-theme-button-text-color);
+    cursor: pointer;
+    transition: all 0.2s;
+    box-shadow: 0 4px 16px rgba(108, 92, 231, 0.3);
+    position: relative;
+    overflow: hidden;
+}
+
+.btn-roll:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 24px rgba(108, 92, 231, 0.4);
+}
+
+.btn-roll:active {
+    transform: translateY(0) scale(0.98);
+}
+
+.btn-roll.rolling {
+    background: linear-gradient(135deg, #555, #444);
+    cursor: wait;
+    box-shadow: none;
+}
+
+.btn-roll.rolling::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 200%;
+    height: 100%;
+    background: linear-gradient(
+        90deg,
+        transparent,
+        rgba(255, 255, 255, 0.08),
+        transparent
+    );
+    animation: shimmer 1.2s infinite;
+}
+
+@keyframes shimmer {
+    0% { transform: translateX(-50%); }
+    100% { transform: translateX(50%); }
+}
+
+/* =============================================
+   History Modal
+   ============================================= */
+
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    z-index: 100;
+    animation: fadeIn 0.2s ease;
+}
+
+.modal-overlay.hidden {
+    display: none;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.modal {
+    background: var(--color-surface);
+    border-radius: var(--radius) var(--radius) 0 0;
+    width: 100%;
+    max-width: 480px;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+    animation: slideUp 0.3s ease;
+}
+
+@keyframes slideUp {
+    from { transform: translateY(100%); }
+    to { transform: translateY(0); }
+}
+
+.modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.modal-header h2 {
+    font-size: 18px;
+    font-weight: 700;
+}
+
+.modal-close {
+    font-size: 24px;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+}
+
+.modal-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px 16px;
+}
+
+.modal-footer {
+    padding: 12px 16px;
+    border-top: 1px solid var(--color-border);
+    display: flex;
+    justify-content: center;
+}
+
+.empty-state {
+    text-align: center;
+    color: var(--tg-theme-hint-color);
+    padding: 32px 0;
+    font-size: 14px;
+}
+
+/* History items */
+.history-item {
+    padding: 10px 12px;
+    border-radius: var(--radius-sm);
+    margin-bottom: 8px;
+    border-left: 3px solid transparent;
+}
+
+.history-item.history-win {
+    background: var(--color-win-bg);
+    border-left-color: var(--color-win);
+}
+
+.history-item.history-lose {
+    background: var(--color-lose-bg);
+    border-left-color: var(--color-lose);
+}
+
+.history-main {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.history-dice {
+    font-size: 22px;
+}
+
+.history-detail {
+    flex: 1;
+    font-size: 14px;
+}
+
+.history-amount {
+    font-size: 15px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.history-win .history-amount {
+    color: var(--color-win);
+}
+
+.history-lose .history-amount {
+    color: var(--color-lose);
+}
+
+.history-meta {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 4px;
+    font-size: 11px;
+    color: var(--tg-theme-hint-color);
+}
+
+/* =============================================
+   Shared Button Styles
+   ============================================= */
 
 .btn {
-    flex: 1;
-    padding: 14px 20px;
-    font-size: 16px;
-    font-weight: 500;
+    padding: 10px 20px;
+    font-size: 14px;
+    font-weight: 600;
     border: none;
-    border-radius: 10px;
+    border-radius: var(--radius-sm);
     cursor: pointer;
-    transition: transform 0.1s, opacity 0.2s;
+    transition: all 0.15s;
 }
 
 .btn:active {
-    transform: scale(0.98);
+    transform: scale(0.97);
 }
 
 .btn-primary {
@@ -127,105 +729,80 @@ body {
     color: var(--tg-theme-button-text-color);
 }
 
-.btn-primary:hover {
-    opacity: 0.9;
-}
-
 .btn-secondary {
-    background-color: var(--tg-theme-secondary-bg-color);
-    color: var(--tg-theme-text-color);
+    background: var(--color-surface-light);
+    color: var(--tg-theme-hint-color);
+    border: 1px solid var(--color-border);
 }
 
 .btn-secondary:hover {
-    opacity: 0.8;
-}
-
-/* Response Message */
-.response {
-    padding: 16px;
-    border-radius: 10px;
-    margin-bottom: 24px;
-    font-size: 14px;
-}
-
-.response.success {
-    background-color: #e8f5e9;
-    color: #2e7d32;
-    border: 1px solid #a5d6a7;
-}
-
-.response.error {
-    background-color: #ffebee;
-    color: #c62828;
-    border: 1px solid #ef9a9a;
-}
-
-.hidden {
-    display: none;
-}
-
-/* Actions Section */
-.actions {
-    margin-top: 24px;
-    padding-top: 24px;
-    border-top: 1px solid var(--tg-theme-secondary-bg-color);
-}
-
-.actions h2 {
-    font-size: 18px;
-    font-weight: 600;
-    margin-bottom: 16px;
-}
-
-.action-buttons {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 10px;
-}
-
-.btn-action {
-    padding: 16px 12px;
-    font-size: 14px;
-    background-color: var(--tg-theme-secondary-bg-color);
     color: var(--tg-theme-text-color);
+    border-color: var(--tg-theme-hint-color);
 }
 
-.btn-action:hover {
-    background-color: var(--tg-theme-button-color);
-    color: var(--tg-theme-button-text-color);
-}
+/* =============================================
+   Footer
+   ============================================= */
 
-/* Footer */
 .footer {
     text-align: center;
-    padding: 20px 0;
-    margin-top: 24px;
-    border-top: 1px solid var(--tg-theme-secondary-bg-color);
+    padding: 16px 0;
+    margin-top: 12px;
 }
 
 .footer p {
-    font-size: 12px;
+    font-size: 11px;
     color: var(--tg-theme-hint-color);
 }
 
-/* Telegram Theme Support */
-@media (prefers-color-scheme: dark) {
+/* =============================================
+   Scrollbar Styling
+   ============================================= */
+
+::-webkit-scrollbar {
+    width: 4px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--color-surface-light);
+    border-radius: 4px;
+}
+
+/* =============================================
+   Light Theme Override (Telegram)
+   ============================================= */
+
+@media (prefers-color-scheme: light) {
     :root {
-        --tg-theme-bg-color: #212121;
-        --tg-theme-text-color: #ffffff;
-        --tg-theme-hint-color: #aaaaaa;
-        --tg-theme-secondary-bg-color: #303030;
+        --tg-theme-bg-color: #f5f5fa;
+        --tg-theme-text-color: #1a1a2e;
+        --tg-theme-hint-color: #666680;
+        --tg-theme-secondary-bg-color: #e8e8f0;
+        --color-surface: #ffffff;
+        --color-surface-light: #f0f0f8;
+        --color-border: rgba(0, 0, 0, 0.08);
+        --shadow-card: 0 4px 24px rgba(0, 0, 0, 0.08);
     }
-    
-    .response.success {
-        background-color: #1b3d1f;
-        color: #81c784;
-        border-color: #2e7d32;
+
+    .dice {
+        background: linear-gradient(145deg, #ffffff, #e8e8f0);
+        border-color: rgba(0, 0, 0, 0.1);
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
     }
-    
-    .response.error {
-        background-color: #3d1b1b;
-        color: #ef9a9a;
-        border-color: #c62828;
+
+    .dot-cell.dot-active::after {
+        background: #1a1a2e;
+    }
+
+    .btn-roll {
+        box-shadow: 0 4px 16px rgba(108, 92, 231, 0.2);
+    }
+
+    .modal-overlay {
+        background: rgba(0, 0, 0, 0.3);
     }
 }

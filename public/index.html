@@ -3,81 +3,113 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Ludik Dashboard</title>
+    <title>Ludik Casino</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
     <div class="container">
+        <!-- Header with balance -->
         <header class="header">
-            <h1>Ludik Dashboard</h1>
-            <p class="subtitle">Welcome to your mini app</p>
+            <div class="header-top">
+                <h1>Ludik Casino</h1>
+                <button class="btn-icon" id="historyBtn" title="Game History">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                </button>
+            </div>
+            <div class="balance-bar">
+                <span class="balance-label">Balance</span>
+                <span class="balance-amount" id="balanceAmount">0.00</span>
+            </div>
         </header>
 
         <main class="main">
-            <form id="dashboardForm" class="form">
-                <div class="form-group">
-                    <label for="name">Name</label>
-                    <input 
-                        type="text" 
-                        id="name" 
-                        name="name" 
-                        placeholder="Enter your name"
-                        required
-                    >
+            <!-- Dice Display Area -->
+            <section class="dice-arena">
+                <div class="dice-result-info" id="resultInfo"></div>
+                <div class="dice-container" id="diceContainer">
+                    <div class="dice" id="dice">
+                        <div class="dice-face" id="diceFace">?</div>
+                    </div>
+                </div>
+                <div class="last-results" id="lastResults"></div>
+            </section>
+
+            <!-- Bet Controls -->
+            <section class="bet-controls">
+                <!-- Target Selection -->
+                <div class="control-group">
+                    <label class="control-label">Target Number</label>
+                    <div class="target-selector">
+                        <button class="target-btn" data-target="1">1</button>
+                        <button class="target-btn" data-target="2">2</button>
+                        <button class="target-btn active" data-target="3">3</button>
+                        <button class="target-btn" data-target="4">4</button>
+                        <button class="target-btn" data-target="5">5</button>
+                        <button class="target-btn" data-target="6">6</button>
+                    </div>
                 </div>
 
-                <div class="form-group">
-                    <label for="email">Email</label>
-                    <input 
-                        type="email" 
-                        id="email" 
-                        name="email" 
-                        placeholder="Enter your email"
-                        required
-                    >
+                <!-- Direction Selection -->
+                <div class="control-group">
+                    <label class="control-label">Your Bet</label>
+                    <div class="direction-selector">
+                        <button class="direction-btn active" data-direction="higher" id="btnHigher">
+                            <span class="direction-arrow">&#9650;</span>
+                            <span class="direction-text">Higher</span>
+                            <span class="direction-coef" id="coefHigher">1.96x</span>
+                        </button>
+                        <button class="direction-btn" data-direction="lower" id="btnLower">
+                            <span class="direction-arrow">&#9660;</span>
+                            <span class="direction-text">Lower</span>
+                            <span class="direction-coef" id="coefLower">1.96x</span>
+                        </button>
+                    </div>
+                    <div class="win-chance" id="winChance">Win chance: 50%</div>
                 </div>
 
-                <div class="form-group">
-                    <label for="message">Message</label>
-                    <textarea 
-                        id="message" 
-                        name="message" 
-                        placeholder="Enter your message"
-                        rows="3"
-                    ></textarea>
+                <!-- Bet Amount -->
+                <div class="control-group">
+                    <label class="control-label">Bet Amount</label>
+                    <div class="bet-input-row">
+                        <button class="bet-quick-btn" data-action="half">½</button>
+                        <input type="number" class="bet-input" id="betAmount" value="10" min="1" step="1">
+                        <button class="bet-quick-btn" data-action="double">2x</button>
+                        <button class="bet-quick-btn" data-action="max">Max</button>
+                    </div>
                 </div>
 
-                <div class="button-group">
-                    <button type="submit" class="btn btn-primary">
-                        Submit
-                    </button>
-                    <button type="button" class="btn btn-secondary" id="clearBtn">
-                        Clear
-                    </button>
+                <!-- Potential Win -->
+                <div class="potential-win">
+                    <span class="potential-label">Potential Win</span>
+                    <span class="potential-amount" id="potentialWin">19.60</span>
                 </div>
-            </form>
 
-            <div id="response" class="response hidden"></div>
-
-            <section class="actions">
-                <h2>Quick Actions</h2>
-                <div class="action-buttons">
-                    <button class="btn btn-action" data-action="action1">
-                        Action 1
-                    </button>
-                    <button class="btn btn-action" data-action="action2">
-                        Action 2
-                    </button>
-                    <button class="btn btn-action" data-action="action3">
-                        Action 3
-                    </button>
-                </div>
+                <!-- Roll Button -->
+                <button class="btn-roll" id="rollBtn">
+                    <span class="roll-text">Roll Dice</span>
+                </button>
             </section>
         </main>
 
+        <!-- History Modal -->
+        <div class="modal-overlay hidden" id="historyModal">
+            <div class="modal">
+                <div class="modal-header">
+                    <h2>Game History</h2>
+                    <button class="btn-icon modal-close" id="closeHistory">&times;</button>
+                </div>
+                <div class="modal-body" id="historyList">
+                    <p class="empty-state">No games played yet</p>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" id="resetBalanceBtn">Reset Balance</button>
+                </div>
+            </div>
+        </div>
+
         <footer class="footer">
-            <p>Powered by Telegram Mini Apps</p>
+            <p>Ludik Casino &mdash; Powered by Telegram Mini Apps</p>
         </footer>
     </div>
 
