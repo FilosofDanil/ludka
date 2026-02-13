@@ -831,14 +831,73 @@ body {
 }
 
 /* =============================================
-   Roulette Arena
+   Roulette — Round Timer
+   ============================================= */
+
+.round-timer {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 16px;
+    background: var(--color-surface);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--color-border);
+    position: relative;
+    overflow: hidden;
+}
+
+.timer-bar {
+    position: absolute;
+    left: 0;
+    top: 0;
+    height: 100%;
+    transition: width 1s linear;
+    z-index: 0;
+    border-radius: var(--radius-sm);
+}
+
+.timer-betting .timer-bar {
+    background: rgba(0, 184, 148, 0.15);
+}
+
+.timer-spinning .timer-bar {
+    background: rgba(255, 71, 87, 0.2);
+}
+
+.timer-result .timer-bar {
+    background: rgba(255, 192, 72, 0.12);
+}
+
+.timer-text {
+    font-size: 14px;
+    font-weight: 600;
+    z-index: 1;
+    flex: 1;
+}
+
+.timer-betting .timer-text { color: var(--color-win); }
+.timer-spinning .timer-text { color: var(--color-lose); }
+.timer-result .timer-text { color: var(--color-gold); }
+
+.timer-countdown {
+    font-size: 22px;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    z-index: 1;
+    color: var(--color-gold);
+    min-width: 28px;
+    text-align: right;
+}
+
+/* =============================================
+   Roulette Arena — Wheel & Ball
    ============================================= */
 
 .roulette-arena {
     display: flex;
     flex-direction: column;
     align-items: center;
-    padding: 20px 0;
+    padding: 12px 0;
     position: relative;
 }
 
@@ -848,275 +907,524 @@ body {
     text-align: center;
     padding: 8px 16px;
     border-radius: var(--radius-sm);
-    margin-bottom: 12px;
-    min-height: 36px;
+    margin-bottom: 8px;
+    min-height: 32px;
     opacity: 0;
     transform: translateY(-8px);
     transition: opacity 0.3s, transform 0.3s;
 }
 
-.roulette-result-info.show {
-    opacity: 1;
-    transform: translateY(0);
+.roulette-result-info.show { opacity: 1; transform: translateY(0); }
+.roulette-result-info.result-win { color: var(--color-win); background: var(--color-win-bg); }
+.roulette-result-info.result-lose { color: var(--color-lose); background: var(--color-lose-bg); }
+.roulette-result-info.result-neutral { color: var(--tg-theme-hint-color); background: var(--color-surface); }
+
+/* Wheel outer container */
+.roulette-wheel-outer {
+    position: relative;
+    width: 190px;
+    height: 190px;
+    margin: 4px auto;
 }
 
-.roulette-result-info.result-win {
-    color: var(--color-win);
-    background: var(--color-win-bg);
+/* Pointer triangle at top */
+.roulette-pointer {
+    position: absolute;
+    top: -6px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 0;
+    height: 0;
+    border-left: 8px solid transparent;
+    border-right: 8px solid transparent;
+    border-top: 14px solid var(--color-gold);
+    z-index: 10;
+    filter: drop-shadow(0 2px 3px rgba(0,0,0,0.4));
 }
 
-.roulette-result-info.result-lose {
-    color: var(--color-lose);
-    background: var(--color-lose-bg);
-}
-
-.roulette-wheel-wrap {
-    perspective: 500px;
-    margin: 8px 0 16px;
-}
-
+/* Wheel ring */
 .roulette-wheel {
-    width: 120px;
-    height: 120px;
+    width: 100%;
+    height: 100%;
     border-radius: 50%;
     background: conic-gradient(
         from 0deg,
-        #c0392b 0deg 10deg,
-        #1a1a35 10deg 20deg,
-        #c0392b 20deg 30deg,
-        #1a1a35 30deg 40deg,
-        #c0392b 40deg 50deg,
-        #1a1a35 50deg 60deg,
-        #c0392b 60deg 70deg,
-        #1a1a35 70deg 80deg,
-        #c0392b 80deg 90deg,
-        #1a1a35 90deg 100deg,
-        #0b6623 100deg 110deg,
-        #1a1a35 110deg 120deg,
-        #c0392b 120deg 130deg,
-        #1a1a35 130deg 140deg,
-        #c0392b 140deg 150deg,
-        #1a1a35 150deg 160deg,
-        #c0392b 160deg 170deg,
-        #1a1a35 170deg 180deg,
-        #c0392b 180deg 190deg,
-        #1a1a35 190deg 200deg,
-        #c0392b 200deg 210deg,
-        #1a1a35 210deg 220deg,
-        #c0392b 220deg 230deg,
-        #1a1a35 230deg 240deg,
-        #c0392b 240deg 250deg,
-        #1a1a35 250deg 260deg,
-        #c0392b 260deg 270deg,
-        #1a1a35 270deg 280deg,
-        #c0392b 280deg 290deg,
-        #1a1a35 290deg 300deg,
-        #c0392b 300deg 310deg,
-        #1a1a35 310deg 320deg,
-        #c0392b 320deg 330deg,
-        #1a1a35 330deg 340deg,
-        #c0392b 340deg 350deg,
-        #1a1a35 350deg 360deg
+        #0b6623 0deg 9.73deg,
+        #c0392b 9.73deg 19.46deg,
+        #1a1a2e 19.46deg 29.19deg,
+        #c0392b 29.19deg 38.92deg,
+        #1a1a2e 38.92deg 48.65deg,
+        #c0392b 48.65deg 58.38deg,
+        #1a1a2e 58.38deg 68.11deg,
+        #c0392b 68.11deg 77.84deg,
+        #1a1a2e 77.84deg 87.57deg,
+        #c0392b 87.57deg 97.3deg,
+        #1a1a2e 97.3deg 107.03deg,
+        #c0392b 107.03deg 116.76deg,
+        #1a1a2e 116.76deg 126.49deg,
+        #c0392b 126.49deg 136.22deg,
+        #1a1a2e 136.22deg 145.95deg,
+        #c0392b 145.95deg 155.68deg,
+        #1a1a2e 155.68deg 165.41deg,
+        #c0392b 165.41deg 175.14deg,
+        #1a1a2e 175.14deg 184.86deg,
+        #c0392b 184.86deg 194.59deg,
+        #1a1a2e 194.59deg 204.32deg,
+        #c0392b 204.32deg 214.05deg,
+        #1a1a2e 214.05deg 223.78deg,
+        #c0392b 223.78deg 233.51deg,
+        #1a1a2e 233.51deg 243.24deg,
+        #c0392b 243.24deg 252.97deg,
+        #1a1a2e 252.97deg 262.7deg,
+        #c0392b 262.7deg 272.43deg,
+        #1a1a2e 272.43deg 282.16deg,
+        #c0392b 282.16deg 291.89deg,
+        #1a1a2e 291.89deg 301.62deg,
+        #c0392b 301.62deg 311.35deg,
+        #1a1a2e 311.35deg 321.08deg,
+        #c0392b 321.08deg 330.81deg,
+        #1a1a2e 330.81deg 340.54deg,
+        #c0392b 340.54deg 350.27deg,
+        #1a1a2e 350.27deg 360deg
     );
     border: 3px solid var(--color-surface-light);
-    display: flex;
-    align-items: center;
-    justify-content: center;
     box-shadow:
-        0 0 0 6px var(--tg-theme-bg-color),
-        0 0 0 8px var(--color-surface-light),
-        0 8px 32px rgba(0, 0, 0, 0.4);
-    transition: transform 0.15s ease;
+        0 0 0 5px var(--tg-theme-bg-color),
+        0 0 0 7px var(--color-surface-light),
+        0 6px 24px rgba(0, 0, 0, 0.4);
+}
+
+/* Ball */
+.roulette-ball {
+    position: absolute;
+    width: 14px;
+    height: 14px;
+    background: radial-gradient(circle at 35% 35%, #ffffff, #bbbbbb);
+    border-radius: 50%;
+    top: 5px;
+    left: 50%;
+    margin-left: -7px;
+    transform-origin: 7px 90px;
+    z-index: 6;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
+    opacity: 0;
+    pointer-events: none;
+}
+
+.roulette-ball.visible {
+    opacity: 1;
+}
+
+/* Center number */
+.roulette-center {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 5;
 }
 
 .roulette-number {
-    width: 64px;
-    height: 64px;
+    width: 72px;
+    height: 72px;
     border-radius: 50%;
     background: var(--tg-theme-bg-color);
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 28px;
+    font-size: 30px;
     font-weight: 800;
     font-variant-numeric: tabular-nums;
     border: 2px solid var(--color-surface-light);
-    color: var(--tg-theme-text-color);
+    color: var(--tg-theme-hint-color);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
 }
 
 .roulette-number.color-red   { color: #ff4757; text-shadow: 0 0 12px rgba(255,71,87,0.4); }
 .roulette-number.color-black { color: var(--tg-theme-text-color); }
 .roulette-number.color-green { color: #00d68f; text-shadow: 0 0 12px rgba(0,214,143,0.4); }
 
-/* Roulette spin animation */
-.roulette-wheel.spinning {
-    animation: rouletteSpin 0.4s infinite linear;
+/* Win/lose glow on wheel outer */
+.roulette-wheel-outer.win-glow .roulette-wheel {
+    box-shadow:
+        0 0 0 5px var(--tg-theme-bg-color),
+        0 0 0 7px var(--color-win),
+        0 0 40px rgba(0, 214, 143, 0.35);
 }
 
-@keyframes rouletteSpin {
-    from { transform: rotate(0deg); }
-    to   { transform: rotate(360deg); }
+.roulette-wheel-outer.lose-glow .roulette-wheel {
+    box-shadow:
+        0 0 0 5px var(--tg-theme-bg-color),
+        0 0 0 7px var(--color-lose),
+        0 0 30px rgba(255, 71, 87, 0.25);
 }
 
-.roulette-wheel.spinning .roulette-number {
-    animation: counterSpin 0.4s infinite linear;
-}
+/* =============================================
+   Roulette — History Strip
+   ============================================= */
 
-@keyframes counterSpin {
-    from { transform: rotate(0deg); }
-    to   { transform: rotate(-360deg); }
-}
-
-.roulette-wheel.win-glow {
-    animation: rouletteWinGlow 0.6s ease;
-}
-
-@keyframes rouletteWinGlow {
-    0%   { box-shadow: 0 0 0 6px var(--tg-theme-bg-color), 0 0 0 8px var(--color-surface-light), 0 8px 32px rgba(0,0,0,0.4); }
-    40%  { box-shadow: 0 0 0 6px var(--tg-theme-bg-color), 0 0 0 8px var(--color-win), 0 0 40px rgba(0,214,143,0.4); }
-    100% { box-shadow: 0 0 0 6px var(--tg-theme-bg-color), 0 0 0 8px var(--color-surface-light), 0 8px 32px rgba(0,0,0,0.4); }
-}
-
-.roulette-wheel.lose-shake {
-    animation: loseShake 0.5s ease;
-}
-
-/* Roulette bet type buttons */
-.roulette-bet-types {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 6px;
-}
-
-.roulette-type-btn {
+.roulette-history-strip {
     display: flex;
     align-items: center;
-    justify-content: center;
-    gap: 6px;
-    padding: 10px 8px;
-    font-size: 13px;
-    font-weight: 600;
-    border: 2px solid var(--color-border);
+    gap: 8px;
+    padding: 8px 12px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
     border-radius: var(--radius-sm);
-    background: var(--tg-theme-bg-color);
-    color: var(--tg-theme-text-color);
-    cursor: pointer;
-    transition: all 0.15s;
-    position: relative;
+    overflow: hidden;
 }
 
-.roulette-type-btn:hover {
-    border-color: var(--tg-theme-button-color);
-    background: rgba(108, 92, 231, 0.06);
-}
-
-.roulette-type-btn.active {
-    border-color: var(--tg-theme-button-color);
-    background: rgba(108, 92, 231, 0.12);
-    box-shadow: 0 0 10px rgba(108, 92, 231, 0.15);
-}
-
-.rtype-dot {
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    display: inline-block;
+.history-strip-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--tg-theme-hint-color);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
     flex-shrink: 0;
 }
 
-.rtype-red   { background: #ff4757; }
-.rtype-black { background: #2d2d50; border: 1px solid #555; }
-
-.rtype-payout {
-    font-size: 11px;
-    color: var(--color-gold);
-    font-weight: 700;
-    margin-left: auto;
-}
-
-/* Straight number grid */
-.roulette-straight-picker.hidden {
-    display: none;
-}
-
-.straight-number-grid {
-    display: grid;
-    grid-template-columns: repeat(10, 1fr);
+.history-strip-numbers {
+    display: flex;
     gap: 4px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
 }
 
-.straight-num-btn {
-    width: 100%;
-    aspect-ratio: 1;
+.history-strip-numbers::-webkit-scrollbar { display: none; }
+
+.history-strip-chip {
+    width: 28px;
+    height: 28px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 12px;
+    border-radius: 50%;
+    font-size: 11px;
     font-weight: 700;
-    border: 2px solid var(--color-border);
-    border-radius: 8px;
-    cursor: pointer;
-    transition: all 0.15s;
-    color: var(--tg-theme-text-color);
-    background: var(--tg-theme-bg-color);
+    font-variant-numeric: tabular-nums;
+    flex-shrink: 0;
+    border: 1px solid transparent;
 }
 
-.straight-num-btn.color-red {
-    background: rgba(255, 71, 87, 0.15);
-    border-color: rgba(255, 71, 87, 0.25);
+.history-strip-chip.color-red {
+    background: rgba(255, 71, 87, 0.2);
     color: #ff4757;
+    border-color: rgba(255, 71, 87, 0.3);
 }
 
-.straight-num-btn.color-black {
-    background: rgba(45, 45, 80, 0.4);
+.history-strip-chip.color-black {
+    background: rgba(45, 45, 80, 0.5);
+    color: var(--tg-theme-text-color);
     border-color: rgba(255, 255, 255, 0.08);
 }
 
-.straight-num-btn.color-green {
-    background: rgba(0, 214, 143, 0.15);
-    border-color: rgba(0, 214, 143, 0.25);
+.history-strip-chip.color-green {
+    background: rgba(0, 214, 143, 0.2);
     color: #00d68f;
+    border-color: rgba(0, 214, 143, 0.3);
 }
 
-.straight-num-btn:hover {
-    transform: scale(1.08);
-    border-color: var(--tg-theme-button-color);
+.no-history {
+    font-size: 12px;
+    color: var(--tg-theme-hint-color);
 }
 
-.straight-num-btn.active {
-    border-color: var(--color-gold) !important;
-    box-shadow: 0 0 10px rgba(255, 192, 72, 0.3);
-    transform: scale(1.05);
+/* =============================================
+   Roulette — Chip Selector
+   ============================================= */
+
+.chip-selector {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 12px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
 }
 
-/* Roulette result chips */
-.roulette-chip {
-    border: 1px solid var(--color-border) !important;
+.chip-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--tg-theme-hint-color);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    flex-shrink: 0;
+    margin-right: 4px;
 }
 
-.roulette-chip.color-red {
-    background: rgba(255, 71, 87, 0.15) !important;
-    color: #ff4757 !important;
-    border-color: rgba(255, 71, 87, 0.3) !important;
+.chip-btn {
+    flex: 1;
+    padding: 8px 4px;
+    font-size: 13px;
+    font-weight: 700;
+    border: 2px solid var(--color-border);
+    border-radius: 8px;
+    background: var(--tg-theme-bg-color);
+    color: var(--tg-theme-hint-color);
+    cursor: pointer;
+    transition: all 0.15s;
+    text-align: center;
 }
 
-.roulette-chip.color-black {
-    background: rgba(45, 45, 80, 0.5) !important;
-    color: var(--tg-theme-text-color) !important;
-    border-color: rgba(255, 255, 255, 0.1) !important;
+.chip-btn:hover {
+    border-color: var(--color-gold);
+    color: var(--color-gold);
 }
 
-.roulette-chip.color-green {
-    background: rgba(0, 214, 143, 0.15) !important;
-    color: #00d68f !important;
-    border-color: rgba(0, 214, 143, 0.3) !important;
+.chip-btn.active {
+    border-color: var(--color-gold);
+    background: rgba(255, 192, 72, 0.15);
+    color: var(--color-gold);
+    box-shadow: 0 0 8px rgba(255, 192, 72, 0.2);
 }
 
-.roulette-chip.chip-win-border {
-    box-shadow: 0 0 8px rgba(0, 214, 143, 0.3);
+.chip-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
 }
 
-/* Roulette history number badge */
+/* =============================================
+   Roulette — Betting Board
+   ============================================= */
+
+.roulette-board {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    transition: opacity 0.3s;
+}
+
+.roulette-board.board-locked {
+    opacity: 0.5;
+    pointer-events: none;
+}
+
+.board-zero {
+    display: flex;
+}
+
+.board-zero .board-cell {
+    flex: 1;
+    padding: 10px;
+    font-size: 20px;
+}
+
+.board-numbers {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 2px;
+}
+
+.board-cell {
+    padding: 12px 6px;
+    font-size: 16px;
+    font-weight: 700;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 4px;
+    cursor: pointer;
+    text-align: center;
+    color: #fff;
+    position: relative;
+    transition: all 0.15s;
+    background: var(--tg-theme-bg-color);
+    font-variant-numeric: tabular-nums;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.board-cell:active {
+    transform: scale(0.95);
+}
+
+.board-cell:disabled {
+    cursor: not-allowed;
+}
+
+/* Number cell colors */
+.cell-red {
+    background: #c0392b;
+    border-color: rgba(255, 255, 255, 0.1);
+}
+
+.cell-black {
+    background: #1a1a2e;
+    border-color: rgba(255, 255, 255, 0.06);
+}
+
+.cell-green {
+    background: #0b6623;
+    border-color: rgba(255, 255, 255, 0.1);
+}
+
+/* Outside bet cells */
+.cell-outside {
+    background: var(--color-surface);
+    color: var(--tg-theme-text-color);
+    font-size: 13px;
+    border-color: var(--color-border);
+}
+
+.cell-red-fill {
+    background: rgba(192, 57, 43, 0.3);
+    color: #ff6b6b;
+}
+
+.cell-black-fill {
+    background: rgba(26, 26, 46, 0.6);
+    color: var(--tg-theme-text-color);
+}
+
+.board-outside {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-top: 2px;
+}
+
+.board-row {
+    display: grid;
+    gap: 2px;
+}
+
+.board-row-3 {
+    grid-template-columns: repeat(3, 1fr);
+}
+
+.board-row-6 {
+    grid-template-columns: repeat(3, 1fr);
+}
+
+/* Chip indicator on bet cells */
+.board-cell.has-bet::after {
+    content: attr(data-bet-amount);
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    background: var(--color-gold);
+    color: #000;
+    font-size: 9px;
+    font-weight: 800;
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+    z-index: 2;
+}
+
+/* Winning cell flash */
+.board-cell.cell-winning {
+    animation: cellWinFlash 0.6s ease 3;
+}
+
+@keyframes cellWinFlash {
+    0%, 100% { box-shadow: none; }
+    50% { box-shadow: 0 0 16px rgba(0, 214, 143, 0.6), inset 0 0 8px rgba(0, 214, 143, 0.2); }
+}
+
+/* =============================================
+   Roulette — Placed Bets Panel
+   ============================================= */
+
+.placed-bets-panel {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    padding: 12px;
+}
+
+.placed-bets-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.placed-bets-title {
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--tg-theme-hint-color);
+    flex: 1;
+}
+
+.placed-bets-total {
+    font-size: 16px;
+    font-weight: 800;
+    color: var(--color-gold);
+    font-variant-numeric: tabular-nums;
+}
+
+.btn-clear-bets {
+    padding: 4px 10px;
+    font-size: 11px;
+    font-weight: 600;
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    background: transparent;
+    color: var(--color-lose);
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.btn-clear-bets:hover {
+    background: var(--color-lose-bg);
+    border-color: var(--color-lose);
+}
+
+.btn-clear-bets:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+.placed-bets-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.no-bets-text {
+    font-size: 13px;
+    color: var(--tg-theme-hint-color);
+    text-align: center;
+    padding: 8px 0;
+}
+
+.placed-bet-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    background: var(--tg-theme-bg-color);
+    border-radius: 6px;
+    font-size: 13px;
+}
+
+.pb-label {
+    flex: 1;
+    font-weight: 600;
+    color: var(--tg-theme-text-color);
+}
+
+.pb-amount {
+    font-weight: 700;
+    color: var(--color-gold);
+    font-variant-numeric: tabular-nums;
+}
+
+.pb-payout {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--tg-theme-hint-color);
+}
+
+/* Roulette history number badge (for modal) */
 .roulette-history-num {
     width: 28px;
     height: 28px;
@@ -1141,16 +1449,6 @@ body {
 .roulette-history-num.color-green {
     background: rgba(0, 214, 143, 0.2);
     color: #00d68f;
-}
-
-/* Spin button green accent */
-.btn-spin {
-    background: linear-gradient(135deg, #00b894, #00a381);
-    box-shadow: 0 4px 16px rgba(0, 184, 148, 0.3);
-}
-
-.btn-spin:hover {
-    box-shadow: 0 6px 24px rgba(0, 184, 148, 0.4);
 }
 
 /* =============================================

@@ -159,12 +159,73 @@ function getBetInfo() {
     }));
 }
 
+/**
+ * Spin the wheel once and resolve multiple bets.
+ * @param {Array<{betType: string, betNumber?: number, betAmount: number}>} bets
+ * @returns {object}
+ */
+function playMulti(bets) {
+    // Validate all bets
+    for (const bet of bets) {
+        if (typeof bet.betAmount !== 'number' || bet.betAmount <= 0) {
+            return { success: false, error: `Invalid bet amount` };
+        }
+        if (!BET_TYPES[bet.betType]) {
+            return { success: false, error: `Invalid bet type: ${bet.betType}` };
+        }
+        if (bet.betType === 'straight') {
+            bet.betNumber = parseInt(bet.betNumber);
+            if (isNaN(bet.betNumber) || bet.betNumber < 0 || bet.betNumber > 36) {
+                return { success: false, error: 'Straight bet number must be 0-36' };
+            }
+        }
+    }
+
+    // Spin once
+    const result = Math.floor(Math.random() * 37);
+    const resultColor = getColor(result);
+
+    // Resolve each bet
+    const resolvedBets = bets.map(bet => {
+        const won = isBetWinner(bet.betType, bet.betNumber != null ? bet.betNumber : null, result);
+        const multiplier = BET_TYPES[bet.betType].payout;
+        const payout = won ? Math.round(bet.betAmount * (multiplier + 1) * 100) / 100 : 0;
+        const profit = won ? Math.round((payout - bet.betAmount) * 100) / 100 : -bet.betAmount;
+        return {
+            betType: bet.betType,
+            betNumber: bet.betType === 'straight' ? bet.betNumber : null,
+            betAmount: bet.betAmount,
+            won,
+            multiplier,
+            payout,
+            profit
+        };
+    });
+
+    const totalBet = Math.round(bets.reduce((s, b) => s + b.betAmount, 0) * 100) / 100;
+    const totalPayout = Math.round(resolvedBets.reduce((s, b) => s + b.payout, 0) * 100) / 100;
+    const totalProfit = Math.round((totalPayout - totalBet) * 100) / 100;
+
+    return {
+        success: true,
+        result,
+        resultColor,
+        bets: resolvedBets,
+        totalBet,
+        totalPayout,
+        totalProfit,
+        won: resolvedBets.some(b => b.won)
+    };
+}
+
 module.exports = {
     play,
+    playMulti,
     getBetInfo,
     getColor,
     getColumn,
     getDozen,
+    isBetWinner,
     BET_TYPES,
     RED_NUMBERS,
     BLACK_NUMBERS,

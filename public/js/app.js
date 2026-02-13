@@ -1,76 +1,91 @@
 const tg = window.Telegram?.WebApp;
 
-// --- State ---
-let state = {
-    userId: null,
-    balance: 0,
-    currentGame: 'dice', // 'dice' | 'roulette'
-    rolling: false,
-
-    // Dice state
-    target: 3,
-    direction: 'higher',
-    betAmount: 10,
-    lastResults: [],
-    coefficients: {},
-
-    // Roulette state
-    rouletteBetType: 'red',
-    rouletteBetNumber: 0,
-    rouletteBetAmount: 10,
-    rouletteLastResults: [],
-    rouletteInfo: null, // cached from server
-};
-
-// Dice face dot patterns
+// ==============================================================
+//  Constants
+// ==============================================================
 const DICE_DOTS = {
-    1: [5],
-    2: [1, 9],
-    3: [1, 5, 9],
-    4: [1, 3, 7, 9],
-    5: [1, 3, 5, 7, 9],
-    6: [1, 3, 4, 6, 7, 9]
+    1: [5], 2: [1, 9], 3: [1, 5, 9],
+    4: [1, 3, 7, 9], 5: [1, 3, 5, 7, 9], 6: [1, 3, 4, 6, 7, 9]
 };
 
-// Roulette number colors (European)
 const RED_NUMBERS = new Set([1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36]);
 function rouletteColor(n) {
     if (n === 0) return 'green';
     return RED_NUMBERS.has(n) ? 'red' : 'black';
 }
 
-// Payout multipliers for roulette bet types (total return including stake)
+// European wheel order (clockwise)
+const WHEEL_ORDER = [0,32,15,19,4,21,2,25,17,34,6,27,13,36,11,30,8,23,10,5,24,16,33,1,20,14,31,9,22,18,29,7,28,12,35,3,26];
+
 const ROULETTE_PAYOUTS = {
     straight: 36, red: 2, black: 2, odd: 2, even: 2,
-    low: 2, high: 2, dozen1: 3, dozen2: 3, dozen3: 3,
-    column1: 3, column2: 3, column3: 3
+    low: 2, high: 2, dozen1: 3, dozen2: 3, dozen3: 3
 };
 
-// --- Init ---
-function init() {
-    if (tg) {
-        tg.ready();
-        tg.expand();
-        applyTelegramTheme();
-    }
+const BET_LABELS = {
+    red: 'Red', black: 'Black', odd: 'Odd', even: 'Even',
+    low: '1-18', high: '19-36',
+    dozen1: '1st 12', dozen2: '2nd 12', dozen3: '3rd 12'
+};
 
+const SPIN_ANIM_DURATION = 5000; // must match server SPINNING_DURATION
+
+// ==============================================================
+//  State
+// ==============================================================
+let state = {
+    userId: null,
+    balance: 0,
+    currentGame: 'dice',
+    rolling: false,
+
+    // Dice
+    target: 3,
+    direction: 'higher',
+    betAmount: 10,
+    lastResults: [],
+    coefficients: {},
+};
+
+// Roulette round state — driven by server via SSE
+let roulette = {
+    phase: 'waiting',      // synced from server: waiting | betting | spinning | result
+    roundId: 0,
+    phaseEndTime: 0,       // local timestamp when current phase ends
+    phaseDurationMs: 0,    // total duration of current phase (for progress bar)
+    chipAmount: 1,
+    bets: [],              // local mirror of bets on server: [{ key, betType, betNumber, amount }]
+    history: [],           // shared history from server: [{ number, color }]
+    lastResult: null,      // { number, color } of last spin (for display)
+    timerInterval: null,   // local display-update interval
+    sseSource: null,       // EventSource instance
+    prevPhase: null,       // for detecting phase transitions
+    prevRoundId: 0,        // for detecting new rounds
+    ballAnimating: false,  // whether ball animation is in progress
+};
+
+// ==============================================================
+//  Init
+// ==============================================================
+function init() {
+    if (tg) { tg.ready(); tg.expand(); applyTelegramTheme(); }
     state.userId = getUserId();
 
     setupGameSwitcher();
     setupDiceListeners();
-    setupRouletteListeners();
     setupSharedListeners();
+    buildRouletteBoard();
+    setupRouletteListeners();
     loadBalance();
     loadGameInfo();
-    loadRouletteInfo();
     updateUI();
-    buildStraightNumberGrid();
+
+    // Connect to server-side roulette round (always, regardless of active tab)
+    connectRouletteSSE();
 }
 
 function getUserId() {
-    if (tg?.initDataUnsafe?.user?.id) {
-        return String(tg.initDataUnsafe.user.id);
-    }
+    if (tg?.initDataUnsafe?.user?.id) return String(tg.initDataUnsafe.user.id);
     let devId = localStorage.getItem('ludik_dev_user_id');
     if (!devId) {
         devId = 'dev_' + Math.random().toString(36).substring(2, 10);
@@ -84,12 +99,9 @@ function applyTelegramTheme() {
     const root = document.documentElement;
     const theme = tg.themeParams;
     const mapping = {
-        bg_color: '--tg-theme-bg-color',
-        text_color: '--tg-theme-text-color',
-        hint_color: '--tg-theme-hint-color',
-        link_color: '--tg-theme-link-color',
-        button_color: '--tg-theme-button-color',
-        button_text_color: '--tg-theme-button-text-color',
+        bg_color: '--tg-theme-bg-color', text_color: '--tg-theme-text-color',
+        hint_color: '--tg-theme-hint-color', link_color: '--tg-theme-link-color',
+        button_color: '--tg-theme-button-color', button_text_color: '--tg-theme-button-text-color',
         secondary_bg_color: '--tg-theme-secondary-bg-color'
     };
     for (const [key, cssVar] of Object.entries(mapping)) {
@@ -98,32 +110,21 @@ function applyTelegramTheme() {
 }
 
 // ==============================================================
-//  API helpers
+//  API
 // ==============================================================
-async function apiGet(url) {
-    const res = await fetch(url);
-    return res.json();
-}
-
+async function apiGet(url) { return (await fetch(url)).json(); }
 async function apiPost(url, body) {
-    const res = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+    return (await fetch(url, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
-    });
-    return res.json();
+    })).json();
 }
 
 async function loadBalance() {
     try {
         const data = await apiGet(`/api/user/${state.userId}/balance`);
-        if (data.success) {
-            state.balance = data.balance;
-            updateBalanceDisplay();
-        }
-    } catch (e) {
-        console.error('Failed to load balance:', e);
-    }
+        if (data.success) { state.balance = data.balance; updateBalanceDisplay(); }
+    } catch (e) { console.error('Failed to load balance:', e); }
 }
 
 async function loadGameInfo() {
@@ -131,43 +132,24 @@ async function loadGameInfo() {
         const data = await apiGet('/api/games/dice/info');
         if (data.success) {
             data.betOptions.forEach(opt => {
-                const key = `${opt.target}_${opt.direction}`;
-                state.coefficients[key] = {
-                    coefficient: opt.coefficient,
-                    winChance: opt.winChance
+                state.coefficients[`${opt.target}_${opt.direction}`] = {
+                    coefficient: opt.coefficient, winChance: opt.winChance
                 };
             });
             updateCoefficients();
         }
-    } catch (e) {
-        console.error('Failed to load dice info:', e);
-    }
-}
-
-async function loadRouletteInfo() {
-    try {
-        const data = await apiGet('/api/games/roulette/info');
-        if (data.success) {
-            state.rouletteInfo = data;
-        }
-    } catch (e) {
-        console.error('Failed to load roulette info:', e);
-    }
+    } catch (e) { console.error('Failed to load dice info:', e); }
 }
 
 async function loadHistory() {
     try {
         const data = await apiGet(`/api/user/${state.userId}/history`);
-        if (data.success) {
-            renderHistory(data.history);
-        }
-    } catch (e) {
-        console.error('Failed to load history:', e);
-    }
+        if (data.success) renderHistory(data.history);
+    } catch (e) { console.error('Failed to load history:', e); }
 }
 
 // ==============================================================
-//  Game Switcher
+//  Game Switcher — no start / stop of roulette loop
 // ==============================================================
 function setupGameSwitcher() {
     document.querySelectorAll('.game-tab').forEach(tab => {
@@ -175,26 +157,25 @@ function setupGameSwitcher() {
             if (state.rolling) return;
             const game = tab.dataset.game;
             if (game === state.currentGame) return;
-
             haptic('light');
             state.currentGame = game;
-
-            // Toggle tab active state
             document.querySelectorAll('.game-tab').forEach(t => t.classList.remove('active'));
             tab.classList.add('active');
-
-            // Toggle game panels
             document.querySelectorAll('.game-panel').forEach(p => p.classList.remove('active'));
             document.getElementById(`game-${game}`).classList.add('active');
+
+            // When switching to roulette, refresh UI to match server state
+            if (game === 'roulette') {
+                updateRouletteDisplay();
+            }
         });
     });
 }
 
 // ==============================================================
-//  Shared listeners (history, reset balance)
+//  Shared Listeners
 // ==============================================================
 function setupSharedListeners() {
-    // History modal
     document.getElementById('historyBtn').addEventListener('click', () => {
         document.getElementById('historyModal').classList.remove('hidden');
         loadHistory();
@@ -203,12 +184,8 @@ function setupSharedListeners() {
         document.getElementById('historyModal').classList.add('hidden');
     });
     document.getElementById('historyModal').addEventListener('click', (e) => {
-        if (e.target === e.currentTarget) {
-            e.currentTarget.classList.add('hidden');
-        }
+        if (e.target === e.currentTarget) e.currentTarget.classList.add('hidden');
     });
-
-    // Reset balance
     document.getElementById('resetBalanceBtn').addEventListener('click', async () => {
         haptic('medium');
         try {
@@ -219,17 +196,14 @@ function setupSharedListeners() {
                 document.getElementById('historyModal').classList.add('hidden');
                 showDiceResult('Balance reset to ' + data.balance, false);
             }
-        } catch (e) {
-            console.error('Failed to reset balance:', e);
-        }
+        } catch (e) { console.error('Failed to reset balance:', e); }
     });
 }
 
 // ==============================================================
-//  DICE — Event Listeners
+//  DICE (unchanged)
 // ==============================================================
 function setupDiceListeners() {
-    // Target buttons
     document.querySelectorAll('.target-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             if (state.rolling) return;
@@ -237,13 +211,9 @@ function setupDiceListeners() {
             state.target = parseInt(btn.dataset.target);
             document.querySelectorAll('.target-btn').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
-            validateDirections();
-            updateCoefficients();
-            updatePotentialWin();
+            validateDirections(); updateCoefficients(); updatePotentialWin();
         });
     });
-
-    // Direction buttons
     document.querySelectorAll('.direction-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             if (state.rolling) return;
@@ -251,19 +221,14 @@ function setupDiceListeners() {
             state.direction = btn.dataset.direction;
             document.querySelectorAll('.direction-btn').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
-            updateCoefficients();
-            updatePotentialWin();
+            updateCoefficients(); updatePotentialWin();
         });
     });
-
-    // Bet amount input
     const betInput = document.getElementById('betAmount');
     betInput.addEventListener('input', () => {
         state.betAmount = parseFloat(betInput.value) || 0;
         updatePotentialWin();
     });
-
-    // Quick bet buttons (dice)
     document.querySelectorAll('#game-dice .bet-quick-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             haptic('light');
@@ -274,82 +239,48 @@ function setupDiceListeners() {
             if (action === 'double') val = Math.min(state.balance, val * 2);
             if (action === 'max') val = state.balance;
             val = Math.floor(val);
-            input.value = val;
-            state.betAmount = val;
-            updatePotentialWin();
+            input.value = val; state.betAmount = val; updatePotentialWin();
         });
     });
-
-    // Roll button
     document.getElementById('rollBtn').addEventListener('click', rollDice);
 }
 
-// ==============================================================
-//  DICE — Game Logic
-// ==============================================================
 async function rollDice() {
     if (state.rolling) return;
-
     const amount = Math.floor(parseFloat(document.getElementById('betAmount').value) || 0);
-    if (amount <= 0) {
-        showDiceResult('Enter a valid bet amount', false);
-        haptic('error');
-        return;
-    }
-    if (amount > state.balance) {
-        showDiceResult('Insufficient balance!', false);
-        haptic('error');
-        return;
-    }
-
+    if (amount <= 0) { showDiceResult('Enter a valid bet amount', false); haptic('error'); return; }
+    if (amount > state.balance) { showDiceResult('Insufficient balance!', false); haptic('error'); return; }
     const key = `${state.target}_${state.direction}`;
-    if (!state.coefficients[key]) {
-        showDiceResult('Invalid bet selection', false);
-        haptic('error');
-        return;
-    }
+    if (!state.coefficients[key]) { showDiceResult('Invalid bet selection', false); haptic('error'); return; }
 
     state.rolling = true;
     const rollBtn = document.getElementById('rollBtn');
     rollBtn.classList.add('rolling');
     rollBtn.querySelector('.roll-text').textContent = 'Rolling...';
-
     const dice = document.getElementById('dice');
     const diceFace = document.getElementById('diceFace');
     dice.classList.add('spinning');
 
     let animFrames = 0;
     const animInterval = setInterval(() => {
-        const randomFace = Math.floor(Math.random() * 6) + 1;
-        renderDiceFace(diceFace, randomFace);
+        renderDiceFace(diceFace, Math.floor(Math.random() * 6) + 1);
         animFrames++;
     }, 80);
 
     try {
         const result = await apiPost('/api/games/dice/bet', {
-            userId: state.userId,
-            betAmount: amount,
-            target: state.target,
-            direction: state.direction
+            userId: state.userId, betAmount: amount, target: state.target, direction: state.direction
         });
-
-        const minAnimTime = Math.max(0, 1200 - animFrames * 80);
-        await sleep(minAnimTime);
-
+        await sleep(Math.max(0, 1200 - animFrames * 80));
         clearInterval(animInterval);
         dice.classList.remove('spinning');
 
-        if (!result.success) {
-            showDiceResult(result.error || 'Bet failed', false);
-            haptic('error');
-        } else {
+        if (!result.success) { showDiceResult(result.error || 'Bet failed', false); haptic('error'); }
+        else {
             renderDiceFace(diceFace, result.roll);
             dice.classList.add(result.won ? 'win-shake' : 'lose-shake');
             setTimeout(() => dice.classList.remove('win-shake', 'lose-shake'), 600);
-
-            state.balance = result.balance;
-            updateBalanceDisplay();
-
+            state.balance = result.balance; updateBalanceDisplay();
             if (result.won) {
                 showDiceResult(`Rolled ${result.roll} — You win! +${result.payout.toFixed(2)} (${result.coefficient}x)`, true);
                 haptic('success');
@@ -357,209 +288,606 @@ async function rollDice() {
                 showDiceResult(`Rolled ${result.roll} — You lose! -${amount.toFixed(2)}`, false);
                 haptic('error');
             }
-
             state.lastResults.unshift({ roll: result.roll, won: result.won });
             if (state.lastResults.length > 10) state.lastResults.pop();
             renderLastResults();
         }
     } catch (e) {
-        clearInterval(animInterval);
-        dice.classList.remove('spinning');
-        showDiceResult('Network error, please try again', false);
-        haptic('error');
-        console.error('Roll error:', e);
+        clearInterval(animInterval); dice.classList.remove('spinning');
+        showDiceResult('Network error, please try again', false); haptic('error');
         loadBalance();
     }
-
     state.rolling = false;
     rollBtn.classList.remove('rolling');
     rollBtn.querySelector('.roll-text').textContent = 'Roll Dice';
 }
 
 // ==============================================================
-//  ROULETTE — Event Listeners
+//  ROULETTE — Board Builder
+// ==============================================================
+function buildRouletteBoard() {
+    const board = document.getElementById('rouletteBoard');
+    let html = '';
+
+    // Zero
+    html += '<div class="board-zero"><button class="board-cell cell-green" data-bet-type="straight" data-bet-number="0">0</button></div>';
+
+    // Numbers 1-36 in 12 rows x 3 columns
+    html += '<div class="board-numbers">';
+    for (let row = 0; row < 12; row++) {
+        for (let col = 0; col < 3; col++) {
+            const n = row * 3 + col + 1;
+            const color = rouletteColor(n);
+            html += `<button class="board-cell cell-${color}" data-bet-type="straight" data-bet-number="${n}">${n}</button>`;
+        }
+    }
+    html += '</div>';
+
+    // Outside bets
+    html += '<div class="board-outside">';
+    html += '<div class="board-row board-row-3">';
+    html += '<button class="board-cell cell-outside" data-bet-type="dozen1">1st 12</button>';
+    html += '<button class="board-cell cell-outside" data-bet-type="dozen2">2nd 12</button>';
+    html += '<button class="board-cell cell-outside" data-bet-type="dozen3">3rd 12</button>';
+    html += '</div>';
+    html += '<div class="board-row board-row-6">';
+    html += '<button class="board-cell cell-outside" data-bet-type="low">1-18</button>';
+    html += '<button class="board-cell cell-outside" data-bet-type="even">EVEN</button>';
+    html += '<button class="board-cell cell-outside cell-red-fill" data-bet-type="red">RED</button>';
+    html += '<button class="board-cell cell-outside cell-black-fill" data-bet-type="black">BLACK</button>';
+    html += '<button class="board-cell cell-outside" data-bet-type="odd">ODD</button>';
+    html += '<button class="board-cell cell-outside" data-bet-type="high">19-36</button>';
+    html += '</div>';
+    html += '</div>';
+
+    board.innerHTML = html;
+}
+
+// ==============================================================
+//  ROULETTE — Listeners & Bet Placement (API per-click)
 // ==============================================================
 function setupRouletteListeners() {
-    // Bet type buttons
-    document.querySelectorAll('.roulette-type-btn').forEach(btn => {
+    // Chip selector
+    document.querySelectorAll('.chip-btn').forEach(btn => {
         btn.addEventListener('click', () => {
-            if (state.rolling) return;
+            if (roulette.phase !== 'betting') return;
             haptic('light');
-            state.rouletteBetType = btn.dataset.betType;
-            document.querySelectorAll('.roulette-type-btn').forEach(b => b.classList.remove('active'));
+            roulette.chipAmount = parseInt(btn.dataset.chip);
+            document.querySelectorAll('.chip-btn').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
-
-            // Show/hide straight number picker
-            const picker = document.getElementById('straightPicker');
-            if (state.rouletteBetType === 'straight') {
-                picker.classList.remove('hidden');
-            } else {
-                picker.classList.add('hidden');
-            }
-            updateRoulettePotentialWin();
         });
     });
 
-    // Bet amount input (roulette)
-    const rBetInput = document.getElementById('rouletteBetAmount');
-    rBetInput.addEventListener('input', () => {
-        state.rouletteBetAmount = parseFloat(rBetInput.value) || 0;
-        updateRoulettePotentialWin();
-    });
-
-    // Quick bet buttons (roulette)
-    document.querySelectorAll('.roulette-quick').forEach(btn => {
-        btn.addEventListener('click', () => {
-            haptic('light');
-            const action = btn.dataset.action;
-            const input = document.getElementById('rouletteBetAmount');
-            let val = parseFloat(input.value) || 0;
-            if (action === 'half') val = Math.max(1, Math.floor(val / 2));
-            if (action === 'double') val = Math.min(state.balance, val * 2);
-            if (action === 'max') val = state.balance;
-            val = Math.floor(val);
-            input.value = val;
-            state.rouletteBetAmount = val;
-            updateRoulettePotentialWin();
-        });
-    });
-
-    // Spin button
-    document.getElementById('spinBtn').addEventListener('click', spinRoulette);
-}
-
-function buildStraightNumberGrid() {
-    const grid = document.getElementById('straightNumberGrid');
-    let html = '';
-    for (let i = 0; i <= 36; i++) {
-        const color = rouletteColor(i);
-        const activeClass = (i === state.rouletteBetNumber) ? ' active' : '';
-        html += `<button class="straight-num-btn color-${color}${activeClass}" data-num="${i}">${i}</button>`;
-    }
-    grid.innerHTML = html;
-
-    grid.addEventListener('click', (e) => {
-        const btn = e.target.closest('.straight-num-btn');
-        if (!btn || state.rolling) return;
+    // Board clicks — place bet (sends to server immediately)
+    document.getElementById('rouletteBoard').addEventListener('click', (e) => {
+        const cell = e.target.closest('.board-cell');
+        if (!cell || roulette.phase !== 'betting') return;
         haptic('light');
-        state.rouletteBetNumber = parseInt(btn.dataset.num);
-        grid.querySelectorAll('.straight-num-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        updateRoulettePotentialWin();
-    });
-}
 
-// ==============================================================
-//  ROULETTE — Game Logic
-// ==============================================================
-async function spinRoulette() {
-    if (state.rolling) return;
+        const betType = cell.dataset.betType;
+        const betNumber = cell.dataset.betNumber != null ? parseInt(cell.dataset.betNumber) : null;
+        const betKey = betType === 'straight' ? `straight_${betNumber}` : betType;
 
-    const amount = Math.floor(parseFloat(document.getElementById('rouletteBetAmount').value) || 0);
-    if (amount <= 0) {
-        showRouletteResult('Enter a valid bet amount', false);
-        haptic('error');
-        return;
-    }
-    if (amount > state.balance) {
-        showRouletteResult('Insufficient balance!', false);
-        haptic('error');
-        return;
-    }
-
-    state.rolling = true;
-    const spinBtn = document.getElementById('spinBtn');
-    spinBtn.classList.add('rolling');
-    spinBtn.querySelector('.roll-text').textContent = 'Spinning...';
-
-    const wheel = document.getElementById('rouletteWheel');
-    const numberEl = document.getElementById('rouletteNumber');
-    wheel.classList.add('spinning');
-
-    // Animate random numbers while waiting
-    let animFrames = 0;
-    const animInterval = setInterval(() => {
-        const randNum = Math.floor(Math.random() * 37);
-        numberEl.textContent = randNum;
-        numberEl.className = `roulette-number color-${rouletteColor(randNum)}`;
-        animFrames++;
-    }, 60);
-
-    try {
-        const result = await apiPost('/api/games/roulette/bet', {
-            userId: state.userId,
-            betAmount: amount,
-            betType: state.rouletteBetType,
-            betNumber: state.rouletteBetType === 'straight' ? state.rouletteBetNumber : null
-        });
-
-        const minAnimTime = Math.max(0, 1500 - animFrames * 60);
-        await sleep(minAnimTime);
-
-        clearInterval(animInterval);
-        wheel.classList.remove('spinning');
-
-        if (!result.success) {
-            showRouletteResult(result.error || 'Bet failed', false);
-            haptic('error');
+        // Optimistic local update
+        const existing = roulette.bets.find(b => b.key === betKey);
+        if (existing) {
+            existing.amount += roulette.chipAmount;
         } else {
-            // Show final result
-            numberEl.textContent = result.result;
-            numberEl.className = `roulette-number color-${result.resultColor}`;
+            roulette.bets.push({ key: betKey, betType, betNumber, amount: roulette.chipAmount });
+        }
+        state.balance -= roulette.chipAmount;
+        updateBalanceDisplay();
+        updateBoardChips();
+        updatePlacedBetsList();
 
-            wheel.classList.add(result.won ? 'win-glow' : 'lose-shake');
-            setTimeout(() => wheel.classList.remove('win-glow', 'lose-shake'), 700);
-
-            state.balance = result.balance;
-            updateBalanceDisplay();
-
-            const betLabel = getBetLabel(result.betType, result.betNumber);
-            if (result.won) {
-                showRouletteResult(`${result.result} ${result.resultColor} — You win! +${result.payout.toFixed(2)}`, true);
-                haptic('success');
+        // Send to server
+        apiPost('/api/games/roulette/place-bet', {
+            userId: state.userId,
+            roundId: roulette.roundId,
+            betType,
+            betNumber,
+            betAmount: roulette.chipAmount
+        }).then(res => {
+            if (res.success) {
+                state.balance = res.balance;
+                updateBalanceDisplay();
             } else {
-                showRouletteResult(`${result.result} ${result.resultColor} — You lose! -${amount.toFixed(2)}`, false);
+                // Revert optimistic update
+                revertLastBet(betKey, roulette.chipAmount);
+                showRouletteResult(res.error || 'Bet failed', false);
                 haptic('error');
             }
+        }).catch(() => {
+            revertLastBet(betKey, roulette.chipAmount);
+            showRouletteResult('Network error', false);
+            haptic('error');
+        });
+    });
 
-            state.rouletteLastResults.unshift({ number: result.result, color: result.resultColor, won: result.won });
-            if (state.rouletteLastResults.length > 10) state.rouletteLastResults.pop();
-            renderRouletteLastResults();
-        }
-    } catch (e) {
-        clearInterval(animInterval);
-        wheel.classList.remove('spinning');
-        showRouletteResult('Network error, please try again', false);
-        haptic('error');
-        console.error('Spin error:', e);
-        loadBalance();
-    }
+    // Clear all bets
+    document.getElementById('clearBetsBtn').addEventListener('click', () => {
+        if (roulette.phase !== 'betting' || roulette.bets.length === 0) return;
+        haptic('light');
 
-    state.rolling = false;
-    spinBtn.classList.remove('rolling');
-    spinBtn.querySelector('.roll-text').textContent = 'Spin Wheel';
+        const prevBets = [...roulette.bets];
+        roulette.bets = [];
+        updateBoardChips();
+        updatePlacedBetsList();
+
+        apiPost('/api/games/roulette/clear-bets', {
+            userId: state.userId,
+            roundId: roulette.roundId
+        }).then(res => {
+            if (res.success) {
+                state.balance = res.balance;
+                updateBalanceDisplay();
+            } else {
+                roulette.bets = prevBets;
+                updateBoardChips();
+                updatePlacedBetsList();
+                showRouletteResult(res.error || 'Clear failed', false);
+            }
+        }).catch(() => {
+            roulette.bets = prevBets;
+            updateBoardChips();
+            updatePlacedBetsList();
+            showRouletteResult('Network error', false);
+        });
+    });
+
+    // Right-click to remove a single bet
+    document.getElementById('rouletteBoard').addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        const cell = e.target.closest('.board-cell');
+        if (!cell || roulette.phase !== 'betting') return;
+        haptic('light');
+
+        const betType = cell.dataset.betType;
+        const betNumber = cell.dataset.betNumber != null ? parseInt(cell.dataset.betNumber) : null;
+        const betKey = betType === 'straight' ? `straight_${betNumber}` : betType;
+
+        const idx = roulette.bets.findIndex(b => b.key === betKey);
+        if (idx < 0) return;
+
+        const removedBet = roulette.bets.splice(idx, 1)[0];
+        updateBoardChips();
+        updatePlacedBetsList();
+
+        apiPost('/api/games/roulette/remove-bet', {
+            userId: state.userId,
+            roundId: roulette.roundId,
+            betKey
+        }).then(res => {
+            if (res.success) {
+                state.balance = res.balance;
+                updateBalanceDisplay();
+            } else {
+                // Re-add
+                roulette.bets.push(removedBet);
+                updateBoardChips();
+                updatePlacedBetsList();
+                showRouletteResult(res.error || 'Remove failed', false);
+            }
+        }).catch(() => {
+            roulette.bets.push(removedBet);
+            updateBoardChips();
+            updatePlacedBetsList();
+            showRouletteResult('Network error', false);
+        });
+    });
 }
 
-function getBetLabel(betType, betNumber) {
-    const labels = {
-        straight: `Straight ${betNumber}`,
-        red: 'Red', black: 'Black',
-        odd: 'Odd', even: 'Even',
-        low: '1-18', high: '19-36',
-        dozen1: '1st Dozen', dozen2: '2nd Dozen', dozen3: '3rd Dozen',
-        column1: 'Column 1', column2: 'Column 2', column3: 'Column 3'
-    };
-    return labels[betType] || betType;
+/** Revert an optimistic bet addition. */
+function revertLastBet(betKey, amount) {
+    const idx = roulette.bets.findIndex(b => b.key === betKey);
+    if (idx >= 0) {
+        roulette.bets[idx].amount -= amount;
+        if (roulette.bets[idx].amount <= 0) roulette.bets.splice(idx, 1);
+    }
+    state.balance += amount;
+    updateBalanceDisplay();
+    updateBoardChips();
+    updatePlacedBetsList();
+}
+
+function getTotalBets() {
+    return roulette.bets.reduce((sum, b) => sum + b.amount, 0);
+}
+
+function updateBoardChips() {
+    document.querySelectorAll('.board-cell').forEach(cell => {
+        cell.classList.remove('has-bet');
+        cell.removeAttribute('data-bet-amount');
+    });
+    roulette.bets.forEach(bet => {
+        let selector;
+        if (bet.betType === 'straight') {
+            selector = `.board-cell[data-bet-type="straight"][data-bet-number="${bet.betNumber}"]`;
+        } else {
+            selector = `.board-cell[data-bet-type="${bet.betType}"]`;
+        }
+        const cell = document.querySelector(selector);
+        if (cell) {
+            cell.classList.add('has-bet');
+            cell.setAttribute('data-bet-amount', bet.amount);
+        }
+    });
+}
+
+function updatePlacedBetsList() {
+    const list = document.getElementById('placedBetsList');
+    const totalEl = document.getElementById('placedBetsTotal');
+    const total = getTotalBets();
+    totalEl.textContent = total.toFixed(0);
+
+    if (roulette.bets.length === 0) {
+        list.innerHTML = '<span class="no-bets-text">Tap the board to place bets</span>';
+        return;
+    }
+    list.innerHTML = roulette.bets.map(bet => {
+        const label = bet.betType === 'straight' ? `#${bet.betNumber}` : (BET_LABELS[bet.betType] || bet.betType);
+        const payout = ROULETTE_PAYOUTS[bet.betType] || 2;
+        return `<div class="placed-bet-item">
+            <span class="pb-label">${label}</span>
+            <span class="pb-amount">${bet.amount}</span>
+            <span class="pb-payout">${payout}x</span>
+        </div>`;
+    }).join('');
 }
 
 // ==============================================================
-//  UI Updates — Dice
+//  ROULETTE — SSE Connection (server-driven round)
+// ==============================================================
+function connectRouletteSSE() {
+    if (roulette.sseSource) return;
+
+    roulette.sseSource = new EventSource('/api/games/roulette/events');
+
+    roulette.sseSource.onmessage = (event) => {
+        try {
+            const serverState = JSON.parse(event.data);
+            handleRouletteStateUpdate(serverState);
+        } catch (e) {
+            console.error('SSE parse error:', e);
+        }
+    };
+
+    roulette.sseSource.onerror = () => {
+        console.warn('Roulette SSE disconnected, reconnecting in 3s…');
+        roulette.sseSource.close();
+        roulette.sseSource = null;
+        setTimeout(connectRouletteSSE, 3000);
+    };
+
+    // Start local timer interval for smooth countdown display
+    if (!roulette.timerInterval) {
+        roulette.timerInterval = setInterval(updateTimerDisplay, 200);
+    }
+}
+
+/**
+ * Handle an incoming server state event (fires on every phase change +
+ * once on initial connect).
+ */
+function handleRouletteStateUpdate(s) {
+    const prevPhase   = roulette.phase;
+    const prevRoundId = roulette.roundId;
+
+    // Sync core state
+    roulette.phase         = s.phase;
+    roulette.roundId       = s.roundId;
+    roulette.phaseEndTime  = Date.now() + s.phaseRemainingMs;
+    roulette.phaseDurationMs = s.phaseDurationMs;
+    roulette.history       = (s.history || []).map(h => ({ number: h.number, color: h.color }));
+
+    // --- Phase transitions ---
+
+    const isNewRound = s.roundId !== prevRoundId;
+
+    if (s.phase === 'betting') {
+        // New round started (or we just connected during betting)
+        if (isNewRound || prevPhase !== 'betting') {
+            onNewBettingPhase();
+        }
+    }
+
+    if (s.phase === 'spinning') {
+        // Betting just closed
+        if (prevPhase === 'betting' || (prevPhase === 'waiting' && !roulette.ballAnimating)) {
+            onSpinningPhase(s);
+        }
+    }
+
+    if (s.phase === 'result') {
+        if (prevPhase === 'spinning' || prevPhase === 'waiting') {
+            onResultPhase(s);
+        }
+    }
+
+    roulette.prevPhase   = s.phase;
+    roulette.prevRoundId = s.roundId;
+
+    // Always update display
+    updateRouletteDisplay();
+}
+
+/** Called when a new betting phase begins. */
+function onNewBettingPhase() {
+    // Clear bets from previous round
+    roulette.bets = [];
+    roulette.lastResult = null;
+    roulette.ballAnimating = false;
+
+    // Reset wheel display
+    const numberEl = document.getElementById('rouletteNumber');
+    numberEl.textContent = '?';
+    numberEl.className = 'roulette-number';
+    hideBall();
+
+    setBettingUIEnabled(true);
+    updateBoardChips();
+    updatePlacedBetsList();
+
+    // Fetch any previously placed bets (e.g. after page reload)
+    apiGet(`/api/games/roulette/my-bets?userId=${state.userId}&roundId=${roulette.roundId}`)
+        .then(res => {
+            if (res.success && res.bets && res.bets.length > 0) {
+                roulette.bets = res.bets.map(b => ({
+                    key: b.betKey,
+                    betType: b.betType,
+                    betNumber: b.betNumber,
+                    amount: b.betAmount
+                }));
+                updateBoardChips();
+                updatePlacedBetsList();
+            }
+        })
+        .catch(() => {});
+}
+
+/** Called when the spinning phase begins (result is known). */
+function onSpinningPhase(s) {
+    setBettingUIEnabled(false);
+
+    if (s.result != null) {
+        roulette.lastResult = { number: s.result, color: s.resultColor };
+
+        // Animate the ball
+        roulette.ballAnimating = true;
+        animateBallSpin(s.result);
+
+        // After animation, show result in center + evaluate user's bets
+        setTimeout(() => {
+            roulette.ballAnimating = false;
+            showSpinResult(s);
+        }, SPIN_ANIM_DURATION);
+    }
+}
+
+/** Called when the result phase begins. */
+function onResultPhase(s) {
+    if (s.result != null) {
+        roulette.lastResult = { number: s.result, color: s.resultColor };
+    }
+
+    // If we missed spinning (e.g. reconnected during result), show result directly
+    if (!roulette.ballAnimating) {
+        const numberEl = document.getElementById('rouletteNumber');
+        numberEl.textContent = s.result;
+        numberEl.className = `roulette-number color-${s.resultColor}`;
+    }
+
+    // Update history strip
+    renderRouletteHistoryStrip();
+
+    // Refresh balance from server (winnings were added server-side)
+    loadBalance();
+}
+
+/** Display spin result in wheel center and show win/loss message. */
+function showSpinResult(s) {
+    const numberEl = document.getElementById('rouletteNumber');
+    numberEl.textContent = s.result;
+    numberEl.className = `roulette-number color-${s.resultColor}`;
+
+    const hasBets = roulette.bets.length > 0;
+
+    if (hasBets) {
+        // Calculate local win/loss from known bets + result
+        let totalPayout = 0;
+        let totalBet = 0;
+        let anyWon = false;
+        const betResults = [];
+
+        roulette.bets.forEach(bet => {
+            const won = isLocalBetWinner(bet.betType, bet.betNumber, s.result);
+            const multiplier = (ROULETTE_PAYOUTS[bet.betType] || 2);
+            const payout = won ? bet.amount * multiplier : 0;
+            totalPayout += payout;
+            totalBet += bet.amount;
+            if (won) anyWon = true;
+            betResults.push({ ...bet, won });
+        });
+
+        if (anyWon) {
+            showRouletteResult(`${s.result} ${s.resultColor} — You win! +${totalPayout.toFixed(2)}`, true);
+            haptic('success');
+            highlightWinningBets(betResults);
+        } else {
+            showRouletteResult(`${s.result} ${s.resultColor} — You lose! -${totalBet.toFixed(2)}`, false);
+            haptic('error');
+        }
+    } else {
+        showRouletteResult(`${s.result} ${s.resultColor}`, null);
+    }
+
+    // Glow effect
+    const wheelOuter = document.getElementById('rouletteWheelOuter');
+    if (hasBets) {
+        const glow = roulette.bets.some(bet => isLocalBetWinner(bet.betType, bet.betNumber, s.result))
+            ? 'win-glow' : 'lose-glow';
+        wheelOuter.classList.add(glow);
+        setTimeout(() => wheelOuter.classList.remove('win-glow', 'lose-glow'), 800);
+    }
+
+    // Refresh real balance from server
+    loadBalance();
+}
+
+/** Local bet-winner check (mirrors server logic). */
+function isLocalBetWinner(betType, betNumber, result) {
+    switch (betType) {
+        case 'straight': return result === betNumber;
+        case 'red':      return RED_NUMBERS.has(result);
+        case 'black':    return result > 0 && !RED_NUMBERS.has(result);
+        case 'odd':      return result > 0 && result % 2 === 1;
+        case 'even':     return result > 0 && result % 2 === 0;
+        case 'low':      return result >= 1 && result <= 18;
+        case 'high':     return result >= 19 && result <= 36;
+        case 'dozen1':   return result >= 1 && result <= 12;
+        case 'dozen2':   return result >= 13 && result <= 24;
+        case 'dozen3':   return result >= 25 && result <= 36;
+        default:         return false;
+    }
+}
+
+// ==============================================================
+//  ROULETTE — UI Helpers
+// ==============================================================
+
+function setBettingUIEnabled(enabled) {
+    document.querySelectorAll('.board-cell').forEach(cell => {
+        cell.disabled = !enabled;
+    });
+    document.querySelectorAll('.chip-btn').forEach(btn => {
+        btn.disabled = !enabled;
+    });
+    const clearBtn = document.getElementById('clearBetsBtn');
+    if (clearBtn) clearBtn.disabled = !enabled;
+
+    const board = document.getElementById('rouletteBoard');
+    if (enabled) {
+        board.classList.remove('board-locked');
+    } else {
+        board.classList.add('board-locked');
+    }
+}
+
+function highlightWinningBets(betResults) {
+    betResults.forEach(bet => {
+        if (!bet.won) return;
+        let selector;
+        if (bet.betType === 'straight') {
+            selector = `.board-cell[data-bet-type="straight"][data-bet-number="${bet.betNumber}"]`;
+        } else {
+            selector = `.board-cell[data-bet-type="${bet.betType}"]`;
+        }
+        const cell = document.querySelector(selector);
+        if (cell) {
+            cell.classList.add('cell-winning');
+            setTimeout(() => cell.classList.remove('cell-winning'), 3000);
+        }
+    });
+}
+
+/** Full display refresh (call when switching to roulette tab or on reconnect). */
+function updateRouletteDisplay() {
+    updateTimerDisplay();
+    renderRouletteHistoryStrip();
+    updateBoardChips();
+    updatePlacedBetsList();
+}
+
+// ==============================================================
+//  ROULETTE — Timer Display (runs locally at 200 ms)
+// ==============================================================
+function updateTimerDisplay() {
+    const textEl  = document.getElementById('timerText');
+    const countEl = document.getElementById('timerCountdown');
+    const barEl   = document.getElementById('timerBar');
+    const timerEl = document.getElementById('roundTimer');
+
+    timerEl.className = 'round-timer';
+
+    const remaining = Math.max(0, roulette.phaseEndTime - Date.now());
+    const seconds   = Math.ceil(remaining / 1000);
+    const pct       = roulette.phaseDurationMs > 0
+        ? (remaining / roulette.phaseDurationMs) * 100
+        : 0;
+
+    switch (roulette.phase) {
+        case 'betting':
+            timerEl.classList.add('timer-betting');
+            textEl.textContent  = 'Place your bets!';
+            countEl.textContent = seconds;
+            barEl.style.width   = `${pct}%`;
+            break;
+        case 'spinning':
+            timerEl.classList.add('timer-spinning');
+            textEl.textContent  = 'No more bets!';
+            countEl.textContent = '';
+            barEl.style.width   = '0%';
+            break;
+        case 'result':
+            timerEl.classList.add('timer-result');
+            textEl.textContent  = 'Next round in';
+            countEl.textContent = seconds;
+            barEl.style.width   = `${pct}%`;
+            break;
+        default:
+            textEl.textContent  = 'Connecting...';
+            countEl.textContent = '';
+            barEl.style.width   = '100%';
+    }
+}
+
+// ==============================================================
+//  ROULETTE — Ball Animation
+// ==============================================================
+function animateBallSpin(resultNumber) {
+    const ball = document.getElementById('rouletteBall');
+    const idx = WHEEL_ORDER.indexOf(resultNumber);
+    const segAngle = 360 / 37;
+    const landAngle = idx * segAngle + segAngle / 2;
+    const totalRotation = -(6 * 360 + (360 - landAngle));
+
+    ball.style.transition = 'none';
+    ball.style.transform = 'rotate(0deg)';
+    ball.classList.add('visible');
+    void ball.offsetWidth; // force reflow
+
+    ball.style.transition = `transform ${SPIN_ANIM_DURATION - 500}ms cubic-bezier(0.12, 0.6, 0.22, 1)`;
+    ball.style.transform = `rotate(${totalRotation}deg)`;
+}
+
+function hideBall() {
+    const ball = document.getElementById('rouletteBall');
+    ball.classList.remove('visible');
+    ball.style.transition = 'none';
+    ball.style.transform = 'rotate(0deg)';
+}
+
+// ==============================================================
+//  ROULETTE — History Strip
+// ==============================================================
+function renderRouletteHistoryStrip() {
+    const container = document.getElementById('historyStripNumbers');
+    if (roulette.history.length === 0) {
+        container.innerHTML = '<span class="no-history">No spins yet</span>';
+        return;
+    }
+    container.innerHTML = roulette.history.map(r =>
+        `<span class="history-strip-chip color-${r.color}">${r.number}</span>`
+    ).join('');
+}
+
+// ==============================================================
+//  Dice UI (unchanged)
 // ==============================================================
 function updateUI() {
     updateCoefficients();
     updatePotentialWin();
     validateDirections();
-    updateRoulettePotentialWin();
 }
 
 function updateBalanceDisplay() {
@@ -571,111 +899,70 @@ function updateBalanceDisplay() {
 }
 
 function updateCoefficients() {
-    const higherKey = `${state.target}_higher`;
-    const lowerKey = `${state.target}_lower`;
-    const higherData = state.coefficients[higherKey];
-    const lowerData = state.coefficients[lowerKey];
-
-    document.getElementById('coefHigher').textContent = higherData ? `${higherData.coefficient}x` : '—';
-    document.getElementById('coefLower').textContent = lowerData ? `${lowerData.coefficient}x` : '—';
-
-    const currentKey = `${state.target}_${state.direction}`;
-    const currentData = state.coefficients[currentKey];
-    document.getElementById('winChance').textContent = currentData
-        ? `Win chance: ${currentData.winChance}%`
-        : 'Win chance: —';
-
+    const hd = state.coefficients[`${state.target}_higher`];
+    const ld = state.coefficients[`${state.target}_lower`];
+    document.getElementById('coefHigher').textContent = hd ? `${hd.coefficient}x` : '—';
+    document.getElementById('coefLower').textContent = ld ? `${ld.coefficient}x` : '—';
+    const cd = state.coefficients[`${state.target}_${state.direction}`];
+    document.getElementById('winChance').textContent = cd ? `Win chance: ${cd.winChance}%` : 'Win chance: —';
     updatePotentialWin();
 }
 
 function validateDirections() {
-    const higherKey = `${state.target}_higher`;
-    const lowerKey = `${state.target}_lower`;
-    const higherValid = !!state.coefficients[higherKey];
-    const lowerValid = !!state.coefficients[lowerKey];
-
-    const btnHigher = document.getElementById('btnHigher');
-    const btnLower = document.getElementById('btnLower');
-    btnHigher.disabled = !higherValid;
-    btnLower.disabled = !lowerValid;
-
-    if (state.direction === 'higher' && !higherValid && lowerValid) {
-        state.direction = 'lower';
-        btnHigher.classList.remove('active');
-        btnLower.classList.add('active');
-    } else if (state.direction === 'lower' && !lowerValid && higherValid) {
-        state.direction = 'higher';
-        btnLower.classList.remove('active');
-        btnHigher.classList.add('active');
+    const hv = !!state.coefficients[`${state.target}_higher`];
+    const lv = !!state.coefficients[`${state.target}_lower`];
+    const bH = document.getElementById('btnHigher');
+    const bL = document.getElementById('btnLower');
+    bH.disabled = !hv; bL.disabled = !lv;
+    if (state.direction === 'higher' && !hv && lv) {
+        state.direction = 'lower'; bH.classList.remove('active'); bL.classList.add('active');
+    } else if (state.direction === 'lower' && !lv && hv) {
+        state.direction = 'higher'; bL.classList.remove('active'); bH.classList.add('active');
     }
 }
 
 function updatePotentialWin() {
-    const key = `${state.target}_${state.direction}`;
-    const data = state.coefficients[key];
+    const data = state.coefficients[`${state.target}_${state.direction}`];
     const amount = parseFloat(document.getElementById('betAmount').value) || 0;
     const el = document.getElementById('potentialWin');
-    if (data && amount > 0) {
-        el.textContent = (amount * data.coefficient).toFixed(2);
-    } else {
-        el.textContent = '0.00';
-    }
+    el.textContent = (data && amount > 0) ? (amount * data.coefficient).toFixed(2) : '0.00';
 }
 
 function renderDiceFace(el, number) {
     const dots = DICE_DOTS[number] || [];
     let html = '<div class="dice-dots">';
-    for (let i = 1; i <= 9; i++) {
-        html += `<span class="dot-cell${dots.includes(i) ? ' dot-active' : ''}"></span>`;
-    }
+    for (let i = 1; i <= 9; i++) html += `<span class="dot-cell${dots.includes(i) ? ' dot-active' : ''}"></span>`;
     html += '</div>';
     el.innerHTML = html;
 }
 
 function renderLastResults() {
-    const container = document.getElementById('lastResults');
-    if (state.lastResults.length === 0) { container.innerHTML = ''; return; }
-    container.innerHTML = state.lastResults.map(r =>
+    const c = document.getElementById('lastResults');
+    if (state.lastResults.length === 0) { c.innerHTML = ''; return; }
+    c.innerHTML = state.lastResults.map(r =>
         `<span class="result-chip ${r.won ? 'chip-win' : 'chip-lose'}">${r.roll}</span>`
     ).join('');
 }
 
-function showDiceResult(message, isWin) {
+function showDiceResult(msg, isWin) {
     const el = document.getElementById('resultInfo');
-    el.textContent = message;
+    el.textContent = msg;
     el.className = `dice-result-info ${isWin ? 'result-win' : 'result-lose'} show`;
-    clearTimeout(showDiceResult._timer);
-    showDiceResult._timer = setTimeout(() => el.classList.remove('show'), 4000);
+    clearTimeout(showDiceResult._t);
+    showDiceResult._t = setTimeout(() => el.classList.remove('show'), 4000);
 }
 
-// ==============================================================
-//  UI Updates — Roulette
-// ==============================================================
-function updateRoulettePotentialWin() {
-    const amount = parseFloat(document.getElementById('rouletteBetAmount').value) || 0;
-    const multiplier = ROULETTE_PAYOUTS[state.rouletteBetType] || 2;
-    const el = document.getElementById('roulettePotentialWin');
-    el.textContent = amount > 0 ? (amount * multiplier).toFixed(2) : '0.00';
-}
-
-function renderRouletteLastResults() {
-    const container = document.getElementById('rouletteLastResults');
-    if (state.rouletteLastResults.length === 0) { container.innerHTML = ''; return; }
-    container.innerHTML = state.rouletteLastResults.map(r =>
-        `<span class="result-chip roulette-chip color-${r.color} ${r.won ? 'chip-win-border' : ''}">${r.number}</span>`
-    ).join('');
-}
-
-function showRouletteResult(message, isWin) {
+function showRouletteResult(msg, isWin) {
     const el = document.getElementById('rouletteResultInfo');
-    el.textContent = message;
-    el.className = `roulette-result-info ${isWin ? 'result-win' : 'result-lose'} show`;
-    clearTimeout(showRouletteResult._timer);
-    showRouletteResult._timer = setTimeout(() => el.classList.remove('show'), 4000);
+    el.textContent = msg;
+    const cls = isWin === true ? 'result-win' : (isWin === false ? 'result-lose' : 'result-neutral');
+    el.className = `roulette-result-info ${cls} show`;
+    clearTimeout(showRouletteResult._t);
+    showRouletteResult._t = setTimeout(() => el.classList.remove('show'), 6000);
 }
 
 // ==============================================================
-//  History (shared, supports both games)
+//  History (shared — updated for multi-bet roulette)
 // ==============================================================
 function renderHistory(history) {
     const container = document.getElementById('historyList');
@@ -683,7 +970,6 @@ function renderHistory(history) {
         container.innerHTML = '<p class="empty-state">No games played yet</p>';
         return;
     }
-
     container.innerHTML = history.map(h => {
         const time = new Date(h.timestamp).toLocaleTimeString();
         const wonClass = h.won ? 'history-win' : 'history-lose';
@@ -691,25 +977,27 @@ function renderHistory(history) {
 
         if (h.game === 'roulette') {
             const color = h.resultColor || 'green';
+            const betCount = h.bets ? h.bets.length : 1;
+            const betDesc = h.bets ? h.bets.map(b => {
+                const l = b.betType === 'straight' ? `#${b.betNumber}` : (BET_LABELS[b.betType] || b.betType);
+                return `${l}(${b.betAmount})`;
+            }).join(', ') : (h.betType || '');
             return `
                 <div class="history-item ${wonClass}">
                     <div class="history-main">
                         <span class="history-dice roulette-history-num color-${color}">${h.result}</span>
                         <span class="history-detail">
-                            ${getBetLabel(h.betType, h.betNumber)}
-                            &rarr; <strong>${h.result}</strong> ${color}
+                            ${betDesc} &rarr; <strong>${h.result}</strong> ${color}
                         </span>
                         <span class="history-amount">${sign}${h.profit.toFixed(2)}</span>
                     </div>
                     <div class="history-meta">
-                        <span>Bet: ${h.betAmount} | ${h.multiplier + 1}x</span>
+                        <span>${betCount} bet${betCount > 1 ? 's' : ''} | Total: ${h.betAmount}</span>
                         <span>${time}</span>
                     </div>
-                </div>
-            `;
+                </div>`;
         }
 
-        // Dice history (default)
         return `
             <div class="history-item ${wonClass}">
                 <div class="history-main">
@@ -724,28 +1012,27 @@ function renderHistory(history) {
                     <span>Bet: ${h.betAmount} | ${h.coefficient}x</span>
                     <span>${time}</span>
                 </div>
-            </div>
-        `;
+            </div>`;
     }).join('');
 }
 
 function getDiceEmoji(n) {
-    const emojis = { 1: '\u2680', 2: '\u2681', 3: '\u2682', 4: '\u2683', 5: '\u2684', 6: '\u2685' };
-    return emojis[n] || '?';
+    return { 1: '\u2680', 2: '\u2681', 3: '\u2682', 4: '\u2683', 5: '\u2684', 6: '\u2685' }[n] || '?';
 }
 
-// --- Helpers ---
+// ==============================================================
+//  Helpers
+// ==============================================================
 function haptic(type) {
-    if (tg?.HapticFeedback) {
-        if (type === 'success') tg.HapticFeedback.notificationOccurred('success');
-        else if (type === 'error') tg.HapticFeedback.notificationOccurred('error');
-        else tg.HapticFeedback.impactOccurred(type);
-    }
+    if (!tg?.HapticFeedback) return;
+    if (type === 'success') tg.HapticFeedback.notificationOccurred('success');
+    else if (type === 'error') tg.HapticFeedback.notificationOccurred('error');
+    else tg.HapticFeedback.impactOccurred(type);
 }
 
-function sleep(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
-}
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
-// --- Bootstrap ---
+// ==============================================================
+//  Bootstrap
+// ==============================================================
 document.addEventListener('DOMContentLoaded', init);

@@ -101,86 +101,57 @@
 
             <!-- ======== ROULETTE GAME ======== -->
             <div class="game-panel" id="game-roulette">
-                <!-- Wheel & result -->
+                <!-- Round Timer -->
+                <div class="round-timer" id="roundTimer">
+                    <div class="timer-bar" id="timerBar"></div>
+                    <span class="timer-text" id="timerText">Place your bets!</span>
+                    <span class="timer-countdown" id="timerCountdown">15</span>
+                </div>
+
+                <!-- Wheel with ball -->
                 <section class="roulette-arena">
                     <div class="roulette-result-info" id="rouletteResultInfo"></div>
-                    <div class="roulette-wheel-wrap">
-                        <div class="roulette-wheel" id="rouletteWheel">
-                            <div class="roulette-number" id="rouletteNumber">?</div>
+                    <div class="roulette-wheel-outer" id="rouletteWheelOuter">
+                        <div class="roulette-pointer"></div>
+                        <div class="roulette-ball" id="rouletteBall"></div>
+                        <div class="roulette-wheel" id="rouletteWheel"></div>
+                        <div class="roulette-center">
+                            <span class="roulette-number" id="rouletteNumber">?</span>
                         </div>
                     </div>
-                    <div class="last-results" id="rouletteLastResults"></div>
                 </section>
 
-                <!-- Roulette Bet Controls -->
-                <section class="bet-controls">
-                    <!-- Bet Type -->
-                    <div class="control-group">
-                        <label class="control-label">Bet Type</label>
-                        <div class="roulette-bet-types">
-                            <button class="roulette-type-btn active" data-bet-type="red">
-                                <span class="rtype-dot rtype-red"></span> Red
-                                <span class="rtype-payout">2x</span>
-                            </button>
-                            <button class="roulette-type-btn" data-bet-type="black">
-                                <span class="rtype-dot rtype-black"></span> Black
-                                <span class="rtype-payout">2x</span>
-                            </button>
-                            <button class="roulette-type-btn" data-bet-type="odd">
-                                Odd <span class="rtype-payout">2x</span>
-                            </button>
-                            <button class="roulette-type-btn" data-bet-type="even">
-                                Even <span class="rtype-payout">2x</span>
-                            </button>
-                            <button class="roulette-type-btn" data-bet-type="low">
-                                1-18 <span class="rtype-payout">2x</span>
-                            </button>
-                            <button class="roulette-type-btn" data-bet-type="high">
-                                19-36 <span class="rtype-payout">2x</span>
-                            </button>
-                            <button class="roulette-type-btn" data-bet-type="dozen1">
-                                1st 12 <span class="rtype-payout">3x</span>
-                            </button>
-                            <button class="roulette-type-btn" data-bet-type="dozen2">
-                                2nd 12 <span class="rtype-payout">3x</span>
-                            </button>
-                            <button class="roulette-type-btn" data-bet-type="dozen3">
-                                3rd 12 <span class="rtype-payout">3x</span>
-                            </button>
-                            <button class="roulette-type-btn" data-bet-type="straight">
-                                # Straight <span class="rtype-payout">36x</span>
-                            </button>
-                        </div>
-                    </div>
+                <!-- Previous results strip -->
+                <div class="roulette-history-strip" id="rouletteHistoryStrip">
+                    <span class="history-strip-label">Last:</span>
+                    <div class="history-strip-numbers" id="historyStripNumbers"></div>
+                </div>
 
-                    <!-- Straight number picker (hidden unless betType=straight) -->
-                    <div class="control-group roulette-straight-picker hidden" id="straightPicker">
-                        <label class="control-label">Pick a Number (0-36)</label>
-                        <div class="straight-number-grid" id="straightNumberGrid"></div>
-                    </div>
+                <!-- Chip selector -->
+                <div class="chip-selector">
+                    <span class="chip-label">Chip:</span>
+                    <button class="chip-btn active" data-chip="1">1</button>
+                    <button class="chip-btn" data-chip="5">5</button>
+                    <button class="chip-btn" data-chip="10">10</button>
+                    <button class="chip-btn" data-chip="25">25</button>
+                    <button class="chip-btn" data-chip="50">50</button>
+                    <button class="chip-btn" data-chip="100">100</button>
+                </div>
 
-                    <!-- Bet Amount -->
-                    <div class="control-group">
-                        <label class="control-label">Bet Amount</label>
-                        <div class="bet-input-row">
-                            <button class="bet-quick-btn roulette-quick" data-action="half">½</button>
-                            <input type="number" class="bet-input" id="rouletteBetAmount" value="10" min="1" step="1">
-                            <button class="bet-quick-btn roulette-quick" data-action="double">2x</button>
-                            <button class="bet-quick-btn roulette-quick" data-action="max">Max</button>
-                        </div>
-                    </div>
+                <!-- Roulette Board (generated by JS) -->
+                <div class="roulette-board" id="rouletteBoard"></div>
 
-                    <!-- Potential Win -->
-                    <div class="potential-win">
-                        <span class="potential-label">Potential Win</span>
-                        <span class="potential-amount" id="roulettePotentialWin">20.00</span>
+                <!-- Placed bets summary -->
+                <div class="placed-bets-panel" id="placedBetsPanel">
+                    <div class="placed-bets-header">
+                        <span class="placed-bets-title">Your Bets</span>
+                        <span class="placed-bets-total" id="placedBetsTotal">0</span>
+                        <button class="btn-clear-bets" id="clearBetsBtn">Clear All</button>
                     </div>
-
-                    <!-- Spin Button -->
-                    <button class="btn-roll btn-spin" id="spinBtn">
-                        <span class="roll-text">Spin Wheel</span>
-                    </button>
-                </section>
+                    <div class="placed-bets-list" id="placedBetsList">
+                        <span class="no-bets-text">Tap the board to place bets</span>
+                    </div>
+                </div>
             </div>
         </main>
 

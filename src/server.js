@@ -5,6 +5,7 @@ const { initBot } = require('./bot');
 const userBalance = require('./userBalance');
 const diceGame = require('./games/dice');
 const rouletteGame = require('./games/roulette');
+const rouletteRound = require('./games/rouletteRound');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -106,7 +107,7 @@ app.post('/api/games/dice/bet', (req, res) => {
     });
 });
 
-// --- Roulette Game ---
+// --- Roulette — static info ---
 
 app.get('/api/games/roulette/info', (req, res) => {
     res.json({
@@ -119,59 +120,93 @@ app.get('/api/games/roulette/info', (req, res) => {
     });
 });
 
-app.post('/api/games/roulette/bet', (req, res) => {
-    const { userId, betAmount, betType, betNumber } = req.body;
+// --- Roulette — Server-Side Round (SSE + API) ---
 
-    if (!userId) {
-        return res.status(400).json({ success: false, error: 'userId is required' });
-    }
-
-    const amount = parseFloat(betAmount);
-    if (isNaN(amount) || amount <= 0) {
-        return res.status(400).json({ success: false, error: 'Invalid bet amount' });
-    }
-
-    // Check and deduct balance
-    const deductResult = userBalance.deductBet(userId, amount);
-    if (!deductResult.success) {
-        return res.status(400).json(deductResult);
-    }
-
-    // Play the roulette game
-    const result = rouletteGame.play(amount, betType, betNumber);
-
-    if (!result.success) {
-        // Refund on game logic error
-        userBalance.addWinnings(userId, amount);
-        return res.status(400).json(result);
-    }
-
-    // Add winnings if won
-    if (result.won) {
-        userBalance.addWinnings(userId, result.payout);
-    }
-
-    const finalBalance = userBalance.getBalance(userId);
-
-    // Record history
-    userBalance.addHistoryEntry(userId, {
-        game: 'roulette',
-        betAmount: amount,
-        betType: result.betType,
-        betNumber: result.betNumber,
-        result: result.result,
-        resultColor: result.resultColor,
-        won: result.won,
-        multiplier: result.multiplier,
-        payout: result.payout,
-        profit: result.profit,
-        balanceAfter: finalBalance
+/**
+ * SSE stream — pushes round state on every phase change.
+ * Client calculates local countdown from phaseRemainingMs.
+ */
+app.get('/api/games/roulette/events', (req, res) => {
+    res.writeHead(200, {
+        'Content-Type':  'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection':    'keep-alive',
     });
 
-    res.json({
-        ...result,
-        balance: finalBalance
+    // Immediately send current state so late-joiners sync up
+    const sendState = (state) => {
+        res.write(`data: ${JSON.stringify(state)}\n\n`);
+    };
+    sendState(rouletteRound.getState());
+
+    // Forward every phase-change event
+    const onStateChange = (state) => sendState(state);
+    rouletteRound.on('stateChange', onStateChange);
+
+    // Keep-alive ping every 25 s to prevent proxy timeouts
+    const keepAlive = setInterval(() => {
+        res.write(': keep-alive\n\n');
+    }, 25000);
+
+    req.on('close', () => {
+        rouletteRound.removeListener('stateChange', onStateChange);
+        clearInterval(keepAlive);
     });
+});
+
+/** Snapshot of current round (for non-SSE fallback / page load). */
+app.get('/api/games/roulette/state', (req, res) => {
+    res.json({ success: true, ...rouletteRound.getState() });
+});
+
+/** Place a single bet (deducted immediately). */
+app.post('/api/games/roulette/place-bet', (req, res) => {
+    const { userId, roundId, betType, betNumber, betAmount } = req.body;
+    if (!userId) return res.status(400).json({ success: false, error: 'userId is required' });
+
+    const result = rouletteRound.placeBet(userId, roundId, betType, betNumber, betAmount);
+    if (!result.success) return res.status(400).json(result);
+    res.json(result);
+});
+
+/** Remove a specific bet by betKey. */
+app.post('/api/games/roulette/remove-bet', (req, res) => {
+    const { userId, roundId, betKey } = req.body;
+    if (!userId) return res.status(400).json({ success: false, error: 'userId is required' });
+
+    const result = rouletteRound.removeBet(userId, roundId, betKey);
+    if (!result.success) return res.status(400).json(result);
+    res.json(result);
+});
+
+/** Clear all bets for the current round (full refund). */
+app.post('/api/games/roulette/clear-bets', (req, res) => {
+    const { userId, roundId } = req.body;
+    if (!userId) return res.status(400).json({ success: false, error: 'userId is required' });
+
+    const result = rouletteRound.clearBets(userId, roundId);
+    if (!result.success) return res.status(400).json(result);
+    res.json(result);
+});
+
+/** Get the user's pending bets for a round (e.g. after page reload). */
+app.get('/api/games/roulette/my-bets', (req, res) => {
+    const { userId, roundId } = req.query;
+    if (!userId) return res.status(400).json({ success: false, error: 'userId is required' });
+
+    const bets = rouletteRound.getUserBets(userId, roundId ? parseInt(roundId) : undefined);
+    res.json({ success: true, roundId: rouletteRound.roundId, bets });
+});
+
+/** Get the user's result for a settled round. */
+app.get('/api/games/roulette/my-result', (req, res) => {
+    const { userId, roundId } = req.query;
+    if (!userId) return res.status(400).json({ success: false, error: 'userId is required' });
+
+    const result = rouletteRound.getUserRoundResult(
+        userId, roundId ? parseInt(roundId) : undefined
+    );
+    res.json({ success: true, result });
 });
 
 // --- Legacy form submit (kept for compatibility) ---
@@ -185,6 +220,9 @@ app.post('/api/submit', (req, res) => {
 // Start server
 app.listen(PORT, async () => {
     console.log(`Server running on port ${PORT}`);
+
+    // Start the roulette round manager immediately
+    rouletteRound.start(userBalance);
 
     // Start ngrok tunnel
     if (process.env.NGROK_AUTHTOKEN) {
