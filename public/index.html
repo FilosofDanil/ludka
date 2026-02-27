@@ -20,6 +20,7 @@
             <div class="balance-bar">
                 <span class="balance-label">Balance</span>
                 <span class="balance-amount" id="balanceAmount">0.00</span>
+                <button type="button" class="btn-deposit" id="depositBtn" title="Add playing scores">+ Deposit</button>
             </div>
         </header>
 
@@ -155,6 +156,25 @@
             </div>
         </main>
 
+        <!-- Deposit Modal -->
+        <div class="modal-overlay hidden" id="depositModal">
+            <div class="modal modal-deposit">
+                <div class="modal-header">
+                    <h2>Add playing scores</h2>
+                    <button class="btn-icon modal-close" id="closeDeposit">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <p class="deposit-info">1 Telegram Star = 1,000 playing scores. Choose an amount:</p>
+                    <div class="deposit-options">
+                        <button type="button" class="deposit-option" data-stars="1">1 Star<br><span>1,000 scores</span></button>
+                        <button type="button" class="deposit-option" data-stars="5">5 Stars<br><span>5,000 scores</span></button>
+                        <button type="button" class="deposit-option" data-stars="10">10 Stars<br><span>10,000 scores</span></button>
+                        <button type="button" class="deposit-option" data-stars="50">50 Stars<br><span>50,000 scores</span></button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- History Modal -->
         <div class="modal-overlay hidden" id="historyModal">
             <div class="modal">
@@ -165,9 +185,7 @@
                 <div class="modal-body" id="historyList">
                     <p class="empty-state">No games played yet</p>
                 </div>
-                <div class="modal-footer">
-                    <button class="btn btn-secondary" id="resetBalanceBtn">Reset Balance</button>
-                </div>
+                <div class="modal-footer"></div>
             </div>
         </div>
 

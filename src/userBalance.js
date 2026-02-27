@@ -3,7 +3,7 @@
  * In production, replace with a proper database.
  */
 
-const INITIAL_BALANCE = 1000;
+const INITIAL_BALANCE = 0;
 
 // Store: userId -> { balance, history[] }
 const users = new Map();
@@ -39,6 +39,14 @@ function addWinnings(userId, amount) {
     return { success: true, balance: user.balance };
 }
 
+function addDeposit(userId, amount) {
+    const user = getOrCreateUser(userId);
+    if (amount <= 0) return { success: false, error: 'Deposit amount must be positive' };
+    user.balance = Math.round((user.balance + amount) * 100) / 100;
+    addHistoryEntry(userId, { type: 'deposit', amount, balanceAfter: user.balance });
+    return { success: true, balance: user.balance };
+}
+
 function addHistoryEntry(userId, entry) {
     const user = getOrCreateUser(userId);
     user.history.unshift({
@@ -56,19 +64,12 @@ function getHistory(userId, limit = 20) {
     return user.history.slice(0, limit);
 }
 
-function resetBalance(userId) {
-    const user = getOrCreateUser(userId);
-    user.balance = INITIAL_BALANCE;
-    user.history = [];
-    return { success: true, balance: user.balance };
-}
-
 module.exports = {
     getBalance,
     deductBet,
     addWinnings,
+    addDeposit,
     addHistoryEntry,
     getHistory,
-    resetBalance,
     INITIAL_BALANCE
 };

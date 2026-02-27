@@ -26,7 +26,7 @@ function initBot() {
             chatId,
             `Welcome to Ludik Casino, ${userName}! \n\n` +
             `Roll the dice, place your bets, and test your luck!\n\n` +
-            `You start with ${userBalance.INITIAL_BALANCE} coins. Tap below to play!`,
+            `Add playing scores with Telegram Stars (1 Star = 1,000 scores) via /deposit or in the app. Tap below to play!`,
             {
                 reply_markup: {
                     inline_keyboard: [[
@@ -53,7 +53,7 @@ function initBot() {
         let helpText = '*Ludik Casino — Commands:*\n\n' +
                       '/start - Open the dice game\n' +
                       '/balance - Check your balance\n' +
-                      '/reset - Reset balance to starting amount\n' +
+                      '/deposit - Add playing scores with Telegram Stars\n' +
                       '/help - Show this help message';
 
         if (adminAuth.isAuthorized(msg.from.id)) {
@@ -63,14 +63,27 @@ function initBot() {
         bot.sendMessage(msg.chat.id, helpText, { parse_mode: 'Markdown' });
     });
 
-    // /reset command
-    bot.onText(/\/reset/, (msg) => {
-        const userId = String(msg.from.id);
-        const result = userBalance.resetBalance(userId);
+    // /deposit command — inline keyboard to choose Star amount (1 Star = 1000 scores)
+    bot.onText(/\/deposit/, (msg) => {
+        const chatId = msg.chat.id;
         bot.sendMessage(
-            msg.chat.id,
-            `Balance reset! You now have *${result.balance.toFixed(2)}* coins.`,
-            { parse_mode: 'Markdown' }
+            chatId,
+            '*Add playing scores with Telegram Stars*\n\n1 Star = 1,000 playing scores. Choose an amount:',
+            {
+                parse_mode: 'Markdown',
+                reply_markup: {
+                    inline_keyboard: [
+                        [
+                            { text: '1 Star → 1,000 scores', callback_data: 'deposit_1' },
+                            { text: '5 Stars → 5,000 scores', callback_data: 'deposit_5' }
+                        ],
+                        [
+                            { text: '10 Stars → 10,000 scores', callback_data: 'deposit_10' },
+                            { text: '50 Stars → 50,000 scores', callback_data: 'deposit_50' }
+                        ]
+                    ]
+                }
+            }
         );
     });
 
@@ -107,6 +120,24 @@ function initBot() {
         }
 
         bot.answerCallbackQuery(query.id);
+
+        // Deposit option: send Telegram Stars invoice (XTR, no provider token)
+        if (data.startsWith('deposit_')) {
+            const starAmount = parseInt(data.replace('deposit_', ''), 10);
+            if (starAmount >= 1) {
+                const title = 'Ludik Casino Deposit';
+                const description = `${starAmount * 1000} playing scores`;
+                const payload = JSON.stringify({ userId: String(userId), starAmount, ts: Date.now() });
+                const currency = 'XTR';
+                const prices = [{ label: 'Deposit', amount: starAmount }];
+                bot.sendInvoice(chatId, title, description, payload, undefined, currency, prices)
+                    .catch((err) => {
+                        console.error('sendInvoice error:', err);
+                        bot.sendMessage(chatId, 'Failed to create invoice. Please try again.');
+                    });
+            }
+            return;
+        }
 
         switch (data) {
             case 'admin_main':
@@ -156,8 +187,33 @@ function initBot() {
         }
     });
 
-    // General message handler
+    // Telegram Stars payment: pre-checkout (approve so user can complete payment)
+    bot.on('pre_checkout_query', (query) => {
+        bot.answerPreCheckoutQuery(query.id, true).catch((err) => console.error('answerPreCheckoutQuery error:', err));
+    });
+
+    // Telegram Stars payment: successful payment — credit balance (1 Star = 1000 scores)
     bot.on('message', (msg) => {
+        if (msg.successful_payment) {
+            const payment = msg.successful_payment;
+            try {
+                const payload = JSON.parse(payment.invoice_payload);
+                const { userId, starAmount } = payload;
+                const scoreAmount = (starAmount || payment.total_amount || 0) * 1000;
+                if (userId && scoreAmount > 0) {
+                    userBalance.addDeposit(String(userId), scoreAmount);
+                    bot.sendMessage(
+                        msg.chat.id,
+                        `Deposit successful! +${scoreAmount.toLocaleString()} playing scores added.`,
+                        { parse_mode: 'Markdown' }
+                    );
+                }
+            } catch (e) {
+                console.error('Process successful_payment error:', e);
+            }
+            return;
+        }
+
         if (msg.text && msg.text.startsWith('/')) {
             if (msg.text === '/cancel' && userStates.has(msg.from.id)) {
                 userStates.delete(msg.from.id);
@@ -222,4 +278,8 @@ function sendAdminMenu(chatId, messageId = null) {
     }
 }
 
-module.exports = { initBot };
+function getBot() {
+    return bot;
+}
+
+module.exports = { initBot, getBot };

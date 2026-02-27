@@ -1,7 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const path = require('path');
-const { initBot } = require('./bot');
+const { initBot, getBot } = require('./bot');
 const userBalance = require('./userBalance');
 const diceGame = require('./games/dice');
 const rouletteGame = require('./games/roulette');
@@ -26,17 +26,37 @@ app.get('/api/user/:userId/balance', (req, res) => {
     res.json({ success: true, balance });
 });
 
-app.post('/api/user/:userId/reset', (req, res) => {
-    const { userId } = req.params;
-    const result = userBalance.resetBalance(userId);
-    res.json(result);
-});
-
 app.get('/api/user/:userId/history', (req, res) => {
     const { userId } = req.params;
     const limit = parseInt(req.query.limit) || 20;
     const history = userBalance.getHistory(userId, limit);
     res.json({ success: true, history });
+});
+
+// --- Deposit (Telegram Stars) ---
+// 1 Telegram Star = 1000 playing scores. For XTR, provider_token is omitted.
+app.post('/api/deposit/create-invoice', async (req, res) => {
+    const { userId, starAmount } = req.body;
+    const stars = typeof starAmount === 'number' ? starAmount : parseInt(starAmount, 10);
+    if (!userId || !Number.isInteger(stars) || stars < 1) {
+        return res.status(400).json({ success: false, error: 'userId and starAmount (positive integer) are required' });
+    }
+    const bot = getBot();
+    if (!bot) {
+        return res.status(503).json({ success: false, error: 'Payment service unavailable' });
+    }
+    try {
+        const title = 'Ludik Casino Deposit';
+        const description = `${stars * 1000} playing scores`;
+        const payload = JSON.stringify({ userId, starAmount: stars, ts: Date.now() });
+        const currency = 'XTR';
+        const prices = [{ label: 'Deposit', amount: stars }];
+        const invoiceUrl = await bot.createInvoiceLink(title, description, payload, undefined, currency, prices);
+        res.json({ success: true, invoiceUrl });
+    } catch (err) {
+        console.error('Create invoice error:', err);
+        res.status(500).json({ success: false, error: 'Failed to create invoice' });
+    }
 });
 
 // --- Dice Game ---

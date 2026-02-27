@@ -186,17 +186,51 @@ function setupSharedListeners() {
     document.getElementById('historyModal').addEventListener('click', (e) => {
         if (e.target === e.currentTarget) e.currentTarget.classList.add('hidden');
     });
-    document.getElementById('resetBalanceBtn').addEventListener('click', async () => {
-        haptic('medium');
-        try {
-            const data = await apiPost(`/api/user/${state.userId}/reset`, {});
-            if (data.success) {
-                state.balance = data.balance;
-                updateBalanceDisplay();
-                document.getElementById('historyModal').classList.add('hidden');
-                showDiceResult('Balance reset to ' + data.balance, false);
+
+    // Deposit: open modal
+    document.getElementById('depositBtn').addEventListener('click', () => {
+        haptic('light');
+        document.getElementById('depositModal').classList.remove('hidden');
+    });
+    document.getElementById('closeDeposit').addEventListener('click', () => {
+        document.getElementById('depositModal').classList.add('hidden');
+    });
+    document.getElementById('depositModal').addEventListener('click', (e) => {
+        if (e.target === e.currentTarget) e.currentTarget.classList.add('hidden');
+    });
+
+    // Deposit option: create invoice and open Telegram payment
+    document.querySelectorAll('.deposit-option').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const stars = parseInt(btn.dataset.stars, 10);
+            if (!stars) return;
+            haptic('medium');
+            if (!tg?.openInvoice) {
+                showDiceResult('Deposits are available inside the Telegram app. Use the bot /deposit command.', false);
+                return;
             }
-        } catch (e) { console.error('Failed to reset balance:', e); }
+            try {
+                const data = await apiPost('/api/deposit/create-invoice', { userId: state.userId, starAmount: stars });
+                if (!data.success || !data.invoiceUrl) {
+                    showDiceResult(data.error || 'Could not create invoice', false);
+                    return;
+                }
+                document.getElementById('depositModal').classList.add('hidden');
+                tg.openInvoice(data.invoiceUrl, (status) => {
+                    if (status === 'paid') {
+                        loadBalance();
+                        showDiceResult('Deposit successful! Balance updated.', false);
+                    } else if (status === 'cancelled') {
+                        // User closed without paying — no message needed
+                    } else {
+                        showDiceResult('Payment was not completed.', false);
+                    }
+                });
+            } catch (e) {
+                console.error('Deposit error:', e);
+                showDiceResult('Failed to start deposit. Try again.', false);
+            }
+        });
     });
 }
 
@@ -972,6 +1006,22 @@ function renderHistory(history) {
     }
     container.innerHTML = history.map(h => {
         const time = new Date(h.timestamp).toLocaleTimeString();
+
+        if (h.type === 'deposit') {
+            return `
+                <div class="history-item history-win">
+                    <div class="history-main">
+                        <span class="history-dice">&#11088;</span>
+                        <span class="history-detail">Deposit</span>
+                        <span class="history-amount">+${(h.amount || 0).toFixed(2)}</span>
+                    </div>
+                    <div class="history-meta">
+                        <span>Balance: ${(h.balanceAfter || 0).toFixed(2)}</span>
+                        <span>${time}</span>
+                    </div>
+                </div>`;
+        }
+
         const wonClass = h.won ? 'history-win' : 'history-lose';
         const sign = h.won ? '+' : '';
 
