@@ -21,6 +21,7 @@
                 <span class="balance-label">Balance</span>
                 <span class="balance-amount" id="balanceAmount">0.00</span>
                 <button type="button" class="btn-deposit" id="depositBtn" title="Add playing scores">+ Deposit</button>
+                <button type="button" class="btn-withdraw" id="withdrawBtn" title="Withdraw Stars">Withdraw</button>
             </div>
         </header>
 
@@ -155,6 +156,26 @@
                 </div>
             </div>
         </main>
+
+        <!-- Withdraw Modal -->
+        <div class="modal-overlay hidden" id="withdrawModal">
+            <div class="modal modal-withdraw">
+                <div class="modal-header">
+                    <h2>Withdraw Stars</h2>
+                    <button class="btn-icon modal-close" id="closeWithdraw">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <p class="withdraw-info">1,000 playing scores = 1 Telegram Star. Request is reviewed by admin.</p>
+                    <div class="withdraw-options">
+                        <button type="button" class="withdraw-option" data-stars="1">1 Star<br><span>1,000 scores</span></button>
+                        <button type="button" class="withdraw-option" data-stars="5">5 Stars<br><span>5,000 scores</span></button>
+                        <button type="button" class="withdraw-option" data-stars="10">10 Stars<br><span>10,000 scores</span></button>
+                        <button type="button" class="withdraw-option" data-stars="50">50 Stars<br><span>50,000 scores</span></button>
+                    </div>
+                    <div class="withdraw-status" id="withdrawStatus"></div>
+                </div>
+            </div>
+        </div>
 
         <!-- Deposit Modal -->
         <div class="modal-overlay hidden" id="depositModal">

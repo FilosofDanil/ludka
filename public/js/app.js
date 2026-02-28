@@ -232,6 +232,62 @@ function setupSharedListeners() {
             }
         });
     });
+
+    // Withdraw: open modal
+    document.getElementById('withdrawBtn').addEventListener('click', () => {
+        haptic('light');
+        document.getElementById('withdrawModal').classList.remove('hidden');
+        loadWithdrawStatus();
+    });
+    document.getElementById('closeWithdraw').addEventListener('click', () => {
+        document.getElementById('withdrawModal').classList.add('hidden');
+    });
+    document.getElementById('withdrawModal').addEventListener('click', (e) => {
+        if (e.target === e.currentTarget) e.currentTarget.classList.add('hidden');
+    });
+
+    // Withdraw option: create request via API
+    document.querySelectorAll('.withdraw-option').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const stars = parseInt(btn.dataset.stars, 10);
+            if (!stars) return;
+            haptic('medium');
+            try {
+                const data = await apiPost('/api/withdraw/request', { userId: state.userId, starAmount: stars });
+                if (data.success && data.requestId) {
+                    loadBalance();
+                    document.getElementById('withdrawModal').classList.add('hidden');
+                    showDiceResult('Request #' + data.requestId + ' created. Pending admin review.', false);
+                    loadWithdrawStatus();
+                } else {
+                    showDiceResult(data.error || 'Withdraw failed.', false);
+                }
+            } catch (e) {
+                console.error('Withdraw error:', e);
+                showDiceResult('Failed to create withdraw request.', false);
+            }
+        });
+    });
+}
+
+async function loadWithdrawStatus() {
+    const el = document.getElementById('withdrawStatus');
+    if (!el) return;
+    try {
+        const data = await apiGet('/api/withdraw/status?userId=' + encodeURIComponent(state.userId));
+        if (!data.success || !data.requests || data.requests.length === 0) {
+            el.innerHTML = '<p class="withdraw-status-empty">No withdrawal requests yet.</p>';
+            return;
+        }
+        const lines = data.requests.slice(0, 10).map(r => {
+            const status = r.status === 'pending' ? 'Pending' : r.status === 'confirmed' ? 'Approved' : 'Declined';
+            return `#${r.id} ${r.starAmount} Stars — ${status}`;
+        });
+        el.innerHTML = '<p class="withdraw-status-title">Your requests:</p><ul class="withdraw-status-list">' +
+            lines.map(l => '<li>' + l + '</li>').join('') + '</ul>';
+    } catch (e) {
+        el.innerHTML = '';
+    }
 }
 
 // ==============================================================
@@ -1013,6 +1069,34 @@ function renderHistory(history) {
                     <div class="history-main">
                         <span class="history-dice">&#11088;</span>
                         <span class="history-detail">Deposit</span>
+                        <span class="history-amount">+${(h.amount || 0).toFixed(2)}</span>
+                    </div>
+                    <div class="history-meta">
+                        <span>Balance: ${(h.balanceAfter || 0).toFixed(2)}</span>
+                        <span>${time}</span>
+                    </div>
+                </div>`;
+        }
+        if (h.type === 'withdrawal') {
+            return `
+                <div class="history-item history-lose">
+                    <div class="history-main">
+                        <span class="history-dice">&#8593;</span>
+                        <span class="history-detail">Withdrawal request</span>
+                        <span class="history-amount">-${(h.amount || 0).toFixed(2)}</span>
+                    </div>
+                    <div class="history-meta">
+                        <span>Balance: ${(h.balanceAfter || 0).toFixed(2)}</span>
+                        <span>${time}</span>
+                    </div>
+                </div>`;
+        }
+        if (h.type === 'withdrawal_refund') {
+            return `
+                <div class="history-item history-win">
+                    <div class="history-main">
+                        <span class="history-dice">&#8634;</span>
+                        <span class="history-detail">Withdrawal refund</span>
                         <span class="history-amount">+${(h.amount || 0).toFixed(2)}</span>
                     </div>
                     <div class="history-meta">

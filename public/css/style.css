@@ -130,6 +130,28 @@ body {
     transform: scale(0.97);
 }
 
+.btn-withdraw {
+    flex-shrink: 0;
+    padding: 8px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--tg-theme-text-color);
+    background: var(--color-surface-light);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: transform 0.15s, border-color 0.2s;
+}
+
+.btn-withdraw:hover {
+    border-color: var(--tg-theme-link-color);
+    transform: translateY(-1px);
+}
+
+.btn-withdraw:active {
+    transform: scale(0.97);
+}
+
 .balance-label {
     font-size: 13px;
     color: var(--tg-theme-hint-color);
@@ -768,6 +790,72 @@ body {
 
 .deposit-option:active {
     transform: scale(0.98);
+}
+
+/* Withdraw modal */
+.withdraw-info {
+    font-size: 14px;
+    color: var(--tg-theme-hint-color);
+    margin-bottom: 16px;
+    line-height: 1.5;
+}
+
+.withdraw-options {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.withdraw-option {
+    padding: 16px;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--tg-theme-text-color);
+    background: var(--color-surface-light);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: background 0.2s, border-color 0.2s, transform 0.15s;
+    line-height: 1.4;
+}
+
+.withdraw-option span {
+    display: block;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--tg-theme-hint-color);
+    margin-top: 4px;
+}
+
+.withdraw-option:hover {
+    background: var(--color-surface);
+    border-color: var(--tg-theme-link-color);
+    transform: translateY(-2px);
+}
+
+.withdraw-option:active {
+    transform: scale(0.98);
+}
+
+.withdraw-status {
+    font-size: 13px;
+    color: var(--tg-theme-hint-color);
+}
+
+.withdraw-status-title {
+    font-weight: 600;
+    margin-bottom: 6px;
+}
+
+.withdraw-status-list {
+    margin: 0;
+    padding-left: 20px;
+}
+
+.withdraw-status-empty {
+    margin: 0;
+    font-style: italic;
 }
 
 .empty-state {

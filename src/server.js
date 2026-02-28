@@ -3,6 +3,8 @@ const express = require('express');
 const path = require('path');
 const { initBot, getBot } = require('./bot');
 const userBalance = require('./userBalance');
+const withdrawals = require('./withdrawals');
+const depositCharges = require('./depositCharges');
 const diceGame = require('./games/dice');
 const rouletteGame = require('./games/roulette');
 const rouletteRound = require('./games/rouletteRound');
@@ -57,6 +59,38 @@ app.post('/api/deposit/create-invoice', async (req, res) => {
         console.error('Create invoice error:', err);
         res.status(500).json({ success: false, error: 'Failed to create invoice' });
     }
+});
+
+// --- Withdraw (request Stars; admin confirms via bot) ---
+app.post('/api/withdraw/request', (req, res) => {
+    const { userId, starAmount } = req.body;
+    const stars = typeof starAmount === 'number' ? starAmount : parseInt(starAmount, 10);
+    if (!userId || !Number.isInteger(stars) || stars < 1) {
+        return res.status(400).json({ success: false, error: 'userId and starAmount (positive integer) are required' });
+    }
+    const uid = String(userId);
+    const scoreAmount = stars * 1000;
+    const balance = userBalance.getBalance(uid);
+    if (balance < scoreAmount) {
+        return res.status(400).json({ success: false, error: 'Insufficient balance' });
+    }
+    const charges = depositCharges.findUnusedCharges(uid, stars);
+    if (!charges || charges.length === 0) {
+        return res.status(400).json({ success: false, error: 'Not enough deposit history to withdraw this amount' });
+    }
+    const deductResult = userBalance.deductWithdrawal(uid, scoreAmount);
+    if (!deductResult.success) {
+        return res.status(400).json({ success: false, error: deductResult.error });
+    }
+    const request = withdrawals.createRequest(uid, null, stars, scoreAmount);
+    res.json({ success: true, requestId: request.id });
+});
+
+app.get('/api/withdraw/status', (req, res) => {
+    const { userId } = req.query;
+    if (!userId) return res.status(400).json({ success: false, error: 'userId required' });
+    const list = withdrawals.getUserRequests(userId);
+    res.json({ success: true, requests: list });
 });
 
 // --- Dice Game ---

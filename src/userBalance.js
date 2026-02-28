@@ -47,6 +47,23 @@ function addDeposit(userId, amount) {
     return { success: true, balance: user.balance };
 }
 
+function deductWithdrawal(userId, amount) {
+    const user = getOrCreateUser(userId);
+    if (amount <= 0) return { success: false, error: 'Withdrawal amount must be positive' };
+    if (amount > user.balance) return { success: false, error: 'Insufficient balance' };
+    user.balance = Math.round((user.balance - amount) * 100) / 100;
+    addHistoryEntry(userId, { type: 'withdrawal', amount, balanceAfter: user.balance });
+    return { success: true, balance: user.balance };
+}
+
+function refundWithdrawal(userId, amount) {
+    const user = getOrCreateUser(userId);
+    if (amount <= 0) return { success: false, error: 'Refund amount must be positive' };
+    user.balance = Math.round((user.balance + amount) * 100) / 100;
+    addHistoryEntry(userId, { type: 'withdrawal_refund', amount, balanceAfter: user.balance });
+    return { success: true, balance: user.balance };
+}
+
 function addHistoryEntry(userId, entry) {
     const user = getOrCreateUser(userId);
     user.history.unshift({
@@ -69,6 +86,8 @@ module.exports = {
     deductBet,
     addWinnings,
     addDeposit,
+    deductWithdrawal,
+    refundWithdrawal,
     addHistoryEntry,
     getHistory,
     INITIAL_BALANCE
